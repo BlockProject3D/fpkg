@@ -25,11 +25,22 @@
 mod builder;
 mod command;
 mod profile;
+mod installer;
 
 use clap::clap_app;
-use hlua::Lua;
 
-use builder::find_builder;
+fn handle_install_command(platform: Option<&str>) -> i32
+{
+    match installer::install(platform)
+    {
+        Err(e) =>
+        {
+            eprintln!("{}", e);
+            return 1;
+        }
+        Ok(()) => return 0
+    }
+}
 
 fn main() {
     let matches = clap_app!(fpkg =>
@@ -52,7 +63,11 @@ fn main() {
         )
     ).get_matches();
 
-    if let Some(config) = matches.subcommand_matches("build") {
+    if let Some(platform) = matches.subcommand_matches("install")
+    {
+        std::process::exit(handle_install_command(platform.value_of("platform")));
+    }
+    /*if let Some(config) = matches.subcommand_matches("build") {
         let builder = find_builder();
         if let Some(buildcfg) = config.value_of("configuration") {
             println!("Build with config: {}", buildcfg);
@@ -64,7 +79,7 @@ fn main() {
     {
         Ok(()) => return,
         Err(e) => println!("Error: {:#?}", e)
-    }
+    }*/
     //let c: f32 = test.get("a").unwrap();
     // Same as before...
     //println!("test {}", c);

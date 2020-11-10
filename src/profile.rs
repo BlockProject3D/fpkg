@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 use std::string::String;
 use std::path::Path;
+use std::path::PathBuf;
 use std::fs;
+use std::io;
+
+#[cfg(windows)]
+use winapi::um::fileapi;
 
 pub struct Profile
 {
+    path: PathBuf,
     data: HashMap<String, String>
 }
 
@@ -28,18 +34,35 @@ fn read_profile(path: &Path, map: &mut HashMap<String, String>)
 
 impl Profile
 {
-    pub fn new() -> Profile
+    pub fn mkdir(path: &Path) -> io::Result<()>
+    {
+        let p = path.join(Path::new("/.fpkg/profile"));
+        if !p.exists() {
+            fs::create_dir(&p)?;
+            #[cfg(windows)]
+            fileapi::SetFileAttributesA(&p, fileapi::FILE_ATTRIBUTE_HIDDEN);
+        }
+        return Ok(());
+    }
+
+    pub fn new(path: &Path) -> Profile
     {
         let mut map = HashMap::new();
-        let p = Path::new("./.fpkg/profile");
+        let p = path.join(Path::new("/.fpkg/profile"));
 
         if p.exists() {
-            read_profile(p, &mut map);
+            read_profile(&p, &mut map);
         }
         return Profile
         {
+            path: p,
             data: map
         };
+    }
+
+    pub fn exists(&self) -> bool
+    {
+        return self.path.exists();
     }
 
     pub fn get(&self, name: &str) -> Option<&String>
@@ -50,6 +73,18 @@ impl Profile
     pub fn regenerate_cross(&mut self, _name: &str) -> bool //Regenerate profile for cross-compile platform
     {
         return false;
+    }
+
+    pub fn write(&self) -> io::Result<()>
+    {
+        let mut json = json::JsonValue::new_object();
+
+        for (k, v) in &self.data
+        {
+            json[k] = json::JsonValue::String(v.to_string());
+        }
+        fs::write(&self.path, json.dump())?;
+        return Ok(());
     }
 
     pub fn regenerate_self(&mut self) //Regenerate profile for current platform
@@ -72,5 +107,6 @@ impl Profile
         } else if cfg!(target_arch = "aarch64") {
             self.data.insert(String::from("Arch"), String::from("aarch64"));
         }
+        //TODO: Identify compiler ID and version
     }
 }
