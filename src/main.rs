@@ -22,8 +22,14 @@
 //  - Any package that does not respect any of the previous requirements may still be published but not to the main registry
 //  - A package will be distributed as a compressed archive file containing builds for all configurations of a given platform.
 
+mod builder;
+mod command;
+mod profile;
+
 use clap::clap_app;
 use hlua::Lua;
+
+use builder::find_builder;
 
 fn main() {
     let matches = clap_app!(fpkg =>
@@ -47,6 +53,7 @@ fn main() {
     ).get_matches();
 
     if let Some(config) = matches.subcommand_matches("build") {
+        let builder = find_builder();
         if let Some(buildcfg) = config.value_of("configuration") {
             println!("Build with config: {}", buildcfg);
         }
