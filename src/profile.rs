@@ -4,6 +4,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::fs;
 use std::io;
+use std::process::Command;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -30,6 +31,48 @@ fn read_profile(path: &Path, map: &mut HashMap<String, String>)
         let (f, f1) = v;
         map.insert(String::from(f), f1.to_string());
     }
+}
+
+fn find_compiler_info() -> io::Result<(String, String)>
+{
+    let dir = tempfile::tempdir()?;
+    let content = 
+    r"
+        cmake_minimum_required(VERSION 3.10)
+        project(DetectCompiler)
+
+        message(${CMAKE_COMPILER_ID})
+        message(${CMAKE_COMPILER_VERSION})
+    ";
+    fs::write(&dir.path().join("CMakeLists.txt"), content)?;
+    let output = Command::new("cmake").arg(dir.path()).output()?;
+    if let Ok(s) = String::from_utf8(output.stdout)
+    {
+        let mut compiler = "";
+        let mut version = "";
+        let lines = s.split("\n");
+        for l in lines
+        {
+            if l.starts_with("--")
+            {
+                continue;
+            }
+            if compiler == ""
+            {
+                compiler = l;
+            }
+            else
+            {
+                version = l;
+            }
+        }
+        if compiler == "" || version == ""
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Unable to read compiler information"));
+        }
+        return Ok((String::from(compiler), String::from(version)));
+    }
+    return Err(io::Error::new(io::ErrorKind::InvalidData, "String parsing failure"));
 }
 
 impl Profile
@@ -70,9 +113,9 @@ impl Profile
         return self.data.get(&String::from(name));
     }
 
-    pub fn regenerate_cross(&mut self, _name: &str) -> bool //Regenerate profile for cross-compile platform
+    pub fn regenerate_cross(&mut self, name: &str) -> Result<(), String> //Regenerate profile for cross-compile platform
     {
-        return false;
+        return Err(format!("Platform name {} does not exist", name));
     }
 
     pub fn write(&self) -> io::Result<()>
@@ -87,7 +130,7 @@ impl Profile
         return Ok(());
     }
 
-    pub fn regenerate_self(&mut self) //Regenerate profile for current platform
+    pub fn regenerate_self(&mut self) -> Result<(), String> //Regenerate profile for current platform
     {
         if cfg!(target_os = "windows") {
             self.data.insert(String::from("Platform"), String::from("Windows"));
@@ -107,6 +150,15 @@ impl Profile
         } else if cfg!(target_arch = "aarch64") {
             self.data.insert(String::from("Arch"), String::from("aarch64"));
         }
-        //TODO: Identify compiler ID and version
+        match find_compiler_info()
+        {
+            Ok((name, version)) =>
+            {
+                self.data.insert(String::from("CompilerName"), name);
+                self.data.insert(String::from("CompilerVersion"), version);
+            },
+            Err(e) => return Err(format!("{}", e))
+        }
+        return Ok(());
     }
 }

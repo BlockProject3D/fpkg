@@ -3,6 +3,7 @@ use std::vec::Vec;
 use std::boxed::Box;
 
 use crate::command::Command;
+use crate::lualoader::LuaBuilder;
 
 pub trait Builder
 {
@@ -10,27 +11,10 @@ pub trait Builder
     fn get_build_commands(&self, path: &Path) -> Vec<Command>;
 }
 
-struct CMakeBuilder
-{
-}
-
-impl Builder for CMakeBuilder
-{
-    fn can_build(&self) -> bool
-    {
-        return false;
-    }
-
-    fn get_build_commands(&self, _: &Path) -> Vec<Command>
-    {
-        return Vec::new();
-    }
-}
-
 pub fn find_builder() -> Option<Box<dyn Builder>>
 {
     let mut builders = vec!(
-        Box::new(CMakeBuilder {})
+        Box::new(LuaBuilder {})
     );
 
     for i in 0..builders.len()

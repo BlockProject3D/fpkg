@@ -16,17 +16,7 @@ pub struct Command
 
 impl Command
 {
-    pub fn new(s: &str) -> Command
-    {
-        return Command
-        {
-            cmd_str: String::from(s),
-            shell: Shell::Unspecified
-        };
-    }
-
-    //Because rust neither has default parameter nor overload code-duplication with weird function name is required
-    pub fn new1(s: &str, shell: Shell) -> Command
+    pub fn new(s: &str, shell: Shell) -> Command
     {
         return Command
         {

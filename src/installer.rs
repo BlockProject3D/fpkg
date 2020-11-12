@@ -23,14 +23,8 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<(), Stri
     {
         match platform
         {
-            Some(name) =>
-            {
-                if !profile.regenerate_cross(&name)
-                {
-                    return Err(format!("No such profile {}", name));
-                }
-            },
-            None => profile.regenerate_self()
+            Some(name) => profile.regenerate_cross(name)?,
+            None => profile.regenerate_self()?
         }
     }
     match profile.write()
