@@ -1,22 +1,43 @@
 use std::path::Path;
 use hlua::Lua;
+use std::fs;
 
 use crate::command::Command;
 use crate::builder::Builder;
+use crate::builder::Error;
 
-pub struct LuaFile
+pub struct LuaFile<'a>
 {
-    state: Lua
+    state: Lua<'a>
 }
 
-impl LuaFile
+impl <'a> LuaFile<'a>
 {
-    pub fn new() -> LuaFile
+    pub fn new() -> LuaFile<'a>
     {
-        return LuaFile
+        let mut a = LuaFile
         {
             state: Lua::new()
         };
+
+        a.state.openlibs();
+        return a;
+    }
+
+    pub fn open(&mut self, path: &Path) -> Result<(), Error>
+    {
+        match fs::read_to_string(path)
+        {
+            Ok(s) =>
+            {
+                match self.state.execute::<()>(&s)
+                {
+                    Ok(()) => return Ok(()),
+                    Err(e) => return Err(Error::Lua(e))
+                }
+            },
+            Err(e) => return Err(Error::Io(e))
+        }
     }
 }
 
@@ -29,11 +50,12 @@ impl Builder for LuaBuilder
         return Path::new("./fpkg.lua").exists();
     }
 
-    fn get_build_commands(&self, _: &Path) -> Vec<Command>
+    fn get_build_commands(&self, path: &Path) -> Result<Vec<Command>, Error>
     {
+        let mut lua = LuaFile::new();
         let mut v: Vec<Command> = Vec::new();
 
-
-        return v;
+        lua.open(path)?;
+        return Ok(v);
     }
 }

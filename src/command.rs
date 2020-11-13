@@ -5,7 +5,7 @@ pub enum Shell
     Bash,
     PowerShell,
     Cmd,
-    Unspecified
+    PlatformIndependent
 }
 
 pub struct Command
