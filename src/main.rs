@@ -27,6 +27,7 @@ mod command;
 mod profile;
 mod installer;
 mod lualoader;
+mod minishell;
 
 use clap::clap_app;
 
