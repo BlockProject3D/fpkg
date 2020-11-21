@@ -1,10 +1,38 @@
+// Copyright (c) 2020, BlockProject 3D
+//
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without modification,
+// are permitted provided that the following conditions are met:
+//
+//     * Redistributions of source code must retain the above copyright notice,
+//       this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above copyright notice,
+//       this list of conditions and the following disclaimer in the documentation
+//       and/or other materials provided with the distribution.
+//     * Neither the name of BlockProject 3D nor the names of its contributors
+//       may be used to endorse or promote products derived from this software
+//       without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 use std::collections::HashMap;
 use std::string::String;
 use std::path::Path;
 use std::path::PathBuf;
 use std::fs;
 use std::io;
-use std::process::Command;
+use crate::command;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -45,34 +73,30 @@ fn find_compiler_info() -> io::Result<(String, String)>
         message(${CMAKE_COMPILER_VERSION})
     ";
     fs::write(&dir.path().join("CMakeLists.txt"), content)?;
-    let output = Command::new("cmake").arg(dir.path()).output()?;
-    if let Ok(s) = String::from_utf8(output.stdout)
+    let s = command::run_command_with_output("cmake", &[dir.path()])?;
+    let mut compiler = "";
+    let mut version = "";
+    let lines = s.split("\n");
+    for l in lines
     {
-        let mut compiler = "";
-        let mut version = "";
-        let lines = s.split("\n");
-        for l in lines
+        if l.starts_with("--")
         {
-            if l.starts_with("--")
-            {
-                continue;
-            }
-            if compiler == ""
-            {
-                compiler = l;
-            }
-            else
-            {
-                version = l;
-            }
+            continue;
         }
-        if compiler == "" || version == ""
+        if compiler == ""
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Unable to read compiler information"));
+            compiler = l;
         }
-        return Ok((String::from(compiler), String::from(version)));
+        else
+        {
+            version = l;
+        }
     }
-    return Err(io::Error::new(io::ErrorKind::InvalidData, "String parsing failure"));
+    if compiler == "" || version == ""
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Unable to read compiler information"));
+    }
+    return Ok((String::from(compiler), String::from(version)));
 }
 
 impl Profile
