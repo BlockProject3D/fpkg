@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+mod parser;
+
 #[cfg(test)]
 mod tests {
     #[test]
