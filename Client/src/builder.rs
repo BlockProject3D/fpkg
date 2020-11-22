@@ -36,7 +36,7 @@ use crate::lualoader::LuaBuilder;
 pub enum Error
 {
     Io(io::Error),
-    Lua(hlua::LuaError),
+    Lua(rlua::Error),
     Generic(String)
 }
 

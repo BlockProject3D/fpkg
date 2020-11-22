@@ -28,29 +28,25 @@
 
 use std::path::Path;
 use std::path::PathBuf;
-use hlua::Lua;
-use hlua::LuaFunction;
+use rlua::Lua;
 use std::fs;
 
 use crate::builder::Builder;
 use crate::builder::Error;
 
-pub struct LuaFile<'a>
+pub struct LuaFile
 {
-    state: Lua<'a>
+    state: Lua
 }
 
-impl <'a> LuaFile<'a>
+impl LuaFile
 {
-    pub fn new() -> LuaFile<'a>
+    pub fn new() -> LuaFile
     {
-        let mut a = LuaFile
+        return LuaFile
         {
             state: Lua::new()
         };
-
-        a.state.openlibs();
-        return a;
     }
 
     pub fn open(&mut self, path: &Path) -> Result<(), Error>
@@ -59,7 +55,12 @@ impl <'a> LuaFile<'a>
         {
             Ok(s) =>
             {
-                match self.state.execute::<()>(&s)
+                let res = self.state.context(|ctx|
+                {
+                    ctx.load(&s).set_name("fpkg.lua")?.exec()?;
+                    return Ok(());
+                });
+                match res
                 {
                     Ok(()) => return Ok(()),
                     Err(e) => return Err(Error::Lua(e))
@@ -71,19 +72,16 @@ impl <'a> LuaFile<'a>
 
     pub fn func_build(&mut self) -> Result<i32, Error>
     {
-        let build: Option<LuaFunction<_>> = self.state.get("Build");
-
-        match build
+        let res = self.state.context(|ctx|
         {
-            Some(mut func) =>
-            {
-                match func.call::<i32>()
-                {
-                    Ok(v) => return Ok(v),
-                    Err(e) => return Err(Error::Lua(e))
-                }
-            },
-            None => return Err(Error::Generic(String::from("No function named Build found in Lua script")))
+            let func: rlua::Function = ctx.globals().get("Build")?;
+            let res: i32 = func.call(())?;
+            return Ok(res);
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(e))
         }
     }
 }

@@ -94,9 +94,10 @@ fn handle_build_command(config: &str) -> i32
                     match e
                     {
                         builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
-                        builder::Error::Lua(_) => eprintln!("A lua error has occured"),
+                        builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
                         builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
                     }
+                    return 1;
                 }
             }
         }
