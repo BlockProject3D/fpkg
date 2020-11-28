@@ -56,6 +56,7 @@ mod profile;
 mod installer;
 mod luaengine;
 mod luabuilder;
+mod packager;
 
 use std::path::Path;
 use clap::clap_app;
@@ -73,7 +74,7 @@ fn handle_install_command(platform: Option<&str>) -> i32
     }
 }
 
-fn handle_build_command(config: &str) -> i32
+pub fn handle_build_command(config: &str) -> i32
 {
     let path = Path::new(".");
     let builder = builder::find_builder(path);
@@ -101,6 +102,24 @@ fn handle_build_command(config: &str) -> i32
                     return 1;
                 }
             }
+        }
+    }
+}
+
+fn handle_package_command() -> i32
+{
+    match packager::package(Path::new("./"))
+    {
+        Ok(v) => return v,
+        Err(e) =>
+        {
+            match e
+            {
+                builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+            }
+            return 1;
         }
     }
 }
@@ -137,6 +156,10 @@ fn main() {
             Some(v) => std::process::exit(handle_build_command(v)),
             None => std::process::exit(handle_build_command("debug"))
         }
+    }
+    if matches.subcommand_matches("package").is_some()
+    {
+        std::process::exit(handle_package_command());
     }
     /*if let Some(config) = matches.subcommand_matches("build") {
         let builder = find_builder();

@@ -10,3 +10,7 @@ function Build(tbl)
     command.Run("cmake", {"-S", "zlib", "-B", "zlib", "-DCMAKE_BUILD_TYPE="..tbl.Configuration})
     command.Run("cmake", {"--build", "zlib", "--config", tbl.Configuration, "--target", "zlib", "--target", "zlibstatic"})
 end
+
+--function Package()
+
+--end
