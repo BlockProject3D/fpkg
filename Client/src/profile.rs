@@ -154,24 +154,47 @@ impl Profile
         return Ok(());
     }
 
+    pub fn fill_table(&self, table: &mut rlua::Table) -> rlua::Result<()>
+    {
+        for (k, v) in self.data.iter()
+        {
+            table.set(k.as_str(), v.as_str())?; //Annoying peace of shit RLua is unable to take Strings!
+        }
+        return Ok(());
+    }
+
     pub fn regenerate_self(&mut self) -> Result<(), String> //Regenerate profile for current platform
     {
-        if cfg!(target_os = "windows") {
+        if cfg!(target_os = "windows")
+        {
             self.data.insert(String::from("Platform"), String::from("Windows"));
-        } else if cfg!(target_os = "macos") {
+        }
+        else if cfg!(target_os = "macos")
+        {
             self.data.insert(String::from("Platform"), String::from("OSX"));
-        } else if cfg!(target_os = "linux") {
+        }
+        else if cfg!(target_os = "linux")
+        {
             self.data.insert(String::from("Platform"), String::from("Linux"));
-        } else if cfg!(target_os = "android") {
+        }
+        else if cfg!(target_os = "android")
+        {
             self.data.insert(String::from("Platform"), String::from("Android"));
         }
-        if cfg!(target_arch = "x86") {
+        if cfg!(target_arch = "x86")
+        {
             self.data.insert(String::from("Arch"), String::from("x86"));
-        } else if cfg!(target_arch = "x86_64") {
+        }
+        else if cfg!(target_arch = "x86_64")
+        {
             self.data.insert(String::from("Arch"), String::from("x86_64"));
-        } else if cfg!(target_arch = "arm") {
+        }
+        else if cfg!(target_arch = "arm")
+        {
             self.data.insert(String::from("Arch"), String::from("arm"));
-        } else if cfg!(target_arch = "aarch64") {
+        }
+        else if cfg!(target_arch = "aarch64")
+        {
             self.data.insert(String::from("Arch"), String::from("aarch64"));
         }
         match find_compiler_info()

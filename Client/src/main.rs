@@ -65,7 +65,7 @@ fn handle_install_command(platform: Option<&str>) -> i32
     {
         Err(e) =>
         {
-            eprintln!("{}", e);
+            eprintln!("An error has occured: {}", e);
             return 1;
         }
         Ok(()) => return 0
