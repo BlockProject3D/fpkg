@@ -44,7 +44,7 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<(), Stri
 
     match Profile::mkdir(path)
     {
-        Err(e) => return Err(format!("Error creating .fpkg directory {}", e)),
+        Err(e) => return Err(format!("Error creating {}/.fpkg directory {}", path.display(), e)),
         _ => ()
     }
     if !profile.exists()

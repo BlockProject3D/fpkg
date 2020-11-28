@@ -31,7 +31,7 @@ use std::boxed::Box;
 use std::io;
 use std::string::String;
 
-use crate::lualoader::LuaBuilder;
+use crate::luabuilder::LuaBuilder;
 
 pub enum Error
 {

@@ -27,22 +27,21 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use std::path::Path;
-use std::path::PathBuf;
 use rlua::Lua;
 use std::fs;
 use std::string::String;
 use std::vec::Vec;
 use rlua::FromLua;
 
-use crate::builder::Builder;
+use crate::command;
 use crate::builder::Error;
 use crate::profile::Profile;
 
 pub struct Compiler
 {
-    name: String,
-    minimum_version: Option<String>,
-    versions: Option<Vec<String>>
+    pub name: String,
+    pub minimum_version: Option<String>,
+    pub versions: Option<Vec<String>>
 }
 
 impl FromLua<'_> for Compiler
@@ -72,8 +71,8 @@ impl FromLua<'_> for Compiler
 
 pub struct Dependency
 {
-    name: String,
-    version: String
+    pub name: String,
+    pub version: String
 }
 
 impl FromLua<'_> for Dependency
@@ -101,19 +100,37 @@ impl FromLua<'_> for Dependency
 
 pub struct PackageTable
 {
-    name: String,
-    description: String,
-    version: String,
-    configurations: Option<Vec<String>>,
-    systems: Option<Vec<String>>,
-    architectures: Option<Vec<String>>,
-    compilers: Option<Vec<Compiler>>,
-    dependencies: Option<Vec<Dependency>>
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub configurations: Option<Vec<String>>,
+    pub systems: Option<Vec<String>>,
+    pub architectures: Option<Vec<String>>,
+    pub compilers: Option<Vec<Compiler>>,
+    pub dependencies: Option<Vec<Dependency>>
 }
 
 pub struct LuaFile
 {
     state: Lua
+}
+
+fn run_command_lua(_: rlua::Context<'_>, (exe, args): (String, Vec<String>)) -> rlua::Result<(bool, Option<i32>)>
+{
+    match command::run_command(&exe, args)
+    {
+        Ok(v) => return Ok((v.success(), v.code())),
+        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
+    }
+}
+
+fn run_command_with_output_lua(_: rlua::Context<'_>, (exe, args): (String, Vec<String>)) -> rlua::Result<String>
+{
+    match command::run_command_with_output(&exe, args)
+    {
+        Ok(v) => return Ok(v),
+        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
+    }
 }
 
 impl LuaFile
@@ -144,6 +161,23 @@ impl LuaFile
                 }
             },
             Err(e) => return Err(Error::Io(e))
+        }
+    }
+
+    pub fn open_libs(&mut self) -> Result<(), Error>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let tbl = ctx.create_table()?;
+            tbl.set("Run", ctx.create_function(run_command_lua)?)?;
+            tbl.set("RunOutput", ctx.create_function(run_command_with_output_lua)?)?;
+            ctx.globals().set("command", tbl)?;
+            return Ok(());
+        });
+        match res
+        {
+            Ok(()) => return Ok(()),
+            Err(e) => return Err(Error::Lua(e))
         }
     }
 
@@ -182,6 +216,19 @@ impl LuaFile
         }
     }
 
+    pub fn has_func_build(&self) -> bool
+    {
+        let res = self.state.context(|ctx|
+        {
+            return ctx.globals().contains_key("Build");
+        });
+        match res
+        {
+            Ok(v) => return v,
+            Err(_) => return false
+        }
+    }
+
     pub fn func_build(&mut self, cfg: &str, profile: &Profile) -> Result<i32, Error>
     {
         let res = self.state.context(|ctx|
@@ -190,149 +237,17 @@ impl LuaFile
             tbl.set("Configuration", cfg)?;
             profile.fill_table(&mut tbl)?;
             let func: rlua::Function = ctx.globals().get("Build")?;
-            let res: i32 = func.call(tbl)?;
-            return Ok(res);
+            let res: Option<i32> = func.call(tbl)?;
+            match res
+            {
+                Some(v) => return Ok(v),
+                None => return Ok(0)
+            }
         });
         match res
         {
             Ok(v) => return Ok(v),
             Err(e) => return Err(Error::Lua(e))
         }
-    }
-}
-
-fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String, Error>
-{
-    match configs
-    {
-        None => return Ok(String::from(config)),
-        Some(v) =>
-        {
-            let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
-            match cfg
-            {
-                None => return Err(Error::Generic(format!("Could not find configuration named {}", config))),
-                Some(v) => return Ok(String::from(v))
-            }
-        }
-    }
-}
-
-fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<(), Error>
-{
-    match systems
-    {
-        None => return Ok(()),
-        Some(v) =>
-        {
-            let platform = profile.get("Platform").unwrap();
-            if !v.iter().any(|e| e == platform)
-            {
-                return Err(Error::Generic(format!("Unsupported platform {}", platform)));
-            }
-            return Ok(());
-        }
-    }
-}
-
-fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<(), Error>
-{
-    match archs
-    {
-        None => return Ok(()),
-        Some(v) =>
-        {
-            let arch = profile.get("Arch").unwrap();
-            if !v.iter().any(|e| e == arch)
-            {
-                return Err(Error::Generic(format!("Unsupported acrhitecture {}", arch)));
-            }
-            return Ok(());
-        }
-    }
-}
-
-fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<(), Error>
-{
-    if let Some(minver) = &compiler.minimum_version
-    {
-        let rep1 = minver.replace('.', "");
-        let rep2 = version.replace('.', "");
-        if let Ok(value1) = rep1.parse::<usize>()
-        {
-            if let Ok(value2) = rep2.parse::<usize>()
-            {
-                if value2 >= value1
-                {
-                    return Ok(());
-                }
-                else
-                {
-                    return Err(Error::Generic(format!("Unsuported compiler version {}", version)));
-                }
-            }
-        }
-    }
-    if let Some(versions) = &compiler.versions
-    {
-        if !versions.iter().any(|e| e == version)
-        {
-            return Err(Error::Generic(format!("Unsuported compiler version {}", version)));
-        }
-    }
-    return Ok(());
-}
-
-fn check_compiler(profile: &Profile, compilers: &Option<Vec<Compiler>>) -> Result<(), Error>
-{
-    match compilers
-    {
-        None => return Ok(()),
-        Some(v) =>
-        {
-            let compiler = profile.get("CompilerName").unwrap();
-            let version = profile.get("CompilerVersion").unwrap();
-            match v.iter().find(|v| &v.name == compiler)
-            {
-                None => return Err(Error::Generic(format!("Unsupported compiler"))),
-                Some(cfg) => return check_compiler_version(version, cfg)
-            }
-        }
-    }
-}
-
-pub struct LuaBuilder {}
-
-impl Builder for LuaBuilder
-{
-    fn can_build(&self, path: &Path) -> bool
-    {
-        let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
-        return path.exists();
-    }
-
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32, Error>
-    {
-        let profile = Profile::new(path);
-        if !profile.exists()
-        {
-            return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")))
-        }
-        let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
-        let mut lua = LuaFile::new();
-        lua.open(&path)?;
-        let package = lua.read_table()?;
-        let acfg = check_build_configuration(config, &package.configurations)?;
-
-        println!("Building {} - {} ({})...", package.name, package.version, package.description);
-        check_system(&profile, &package.systems)?;
-        check_arch(&profile, &package.architectures)?;
-        check_compiler(&profile, &package.compilers)?;
-        let res = lua.func_build(&acfg, &profile)?;
-        if res != 0
-        {
-            eprintln!("Build finished with non-zero exit code ({})", res);
-        }
-        return Ok(res);
     }
 }

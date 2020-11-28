@@ -63,17 +63,22 @@ fn read_profile(path: &Path, map: &mut HashMap<String, String>)
 
 fn find_compiler_info() -> io::Result<(String, String)>
 {
+    println!("Reading compiler information...");
     let dir = tempfile::tempdir()?;
-    let content = 
-    r"
+    let content =
+    "
         cmake_minimum_required(VERSION 3.10)
         project(DetectCompiler)
 
-        message(${CMAKE_COMPILER_ID})
-        message(${CMAKE_COMPILER_VERSION})
+        function(FixedMessage)
+            execute_process(COMMAND ${CMAKE_COMMAND} -E echo \"${ARGN}\")
+        endfunction()
+
+        FixedMessage(${CMAKE_CXX_COMPILER_ID})
+        FixedMessage(${CMAKE_CXX_COMPILER_VERSION})
     ";
     fs::write(&dir.path().join("CMakeLists.txt"), content)?;
-    let s = command::run_command_with_output("cmake", &[dir.path()])?;
+    let s = command::run_command_with_output("cmake", &["-S", &dir.path().to_string_lossy(), "-B", &dir.path().to_string_lossy()])?;
     let mut compiler = "";
     let mut version = "";
     let lines = s.split("\n");
@@ -87,15 +92,20 @@ fn find_compiler_info() -> io::Result<(String, String)>
         {
             compiler = l;
         }
-        else
+        else if version == ""
         {
             version = l;
+        }
+        else
+        {
+            break;
         }
     }
     if compiler == "" || version == ""
     {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "Unable to read compiler information"));
     }
+    println!("Found compiler {} ({})", compiler, version);
     return Ok((String::from(compiler), String::from(version)));
 }
 
@@ -103,7 +113,8 @@ impl Profile
 {
     pub fn mkdir(path: &Path) -> io::Result<()>
     {
-        let p = path.join(Path::new("/.fpkg/profile"));
+        let p = path.join(Path::new(".fpkg"));
+
         if !p.exists() {
             fs::create_dir(&p)?;
             #[cfg(windows)]
@@ -115,7 +126,7 @@ impl Profile
     pub fn new(path: &Path) -> Profile
     {
         let mut map = HashMap::new();
-        let p = path.join(Path::new("/.fpkg/profile"));
+        let p = path.join(Path::new(".fpkg/profile"));
 
         if p.exists() {
             read_profile(&p, &mut map);
@@ -197,6 +208,7 @@ impl Profile
         {
             self.data.insert(String::from("Arch"), String::from("aarch64"));
         }
+        println!("Identified platform as {} {}", self.data.get("Platform").unwrap(), self.data.get("Arch").unwrap());
         match find_compiler_info()
         {
             Ok((name, version)) =>

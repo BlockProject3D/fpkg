@@ -54,7 +54,8 @@ mod builder;
 mod command;
 mod profile;
 mod installer;
-mod lualoader;
+mod luaengine;
+mod luabuilder;
 
 use std::path::Path;
 use clap::clap_app;
