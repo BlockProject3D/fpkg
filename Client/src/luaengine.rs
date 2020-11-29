@@ -171,6 +171,35 @@ fn run_command_with_output_lua(_: rlua::Context<'_>, (exe, args): (String, Vec<S
     }
 }
 
+fn io_isdir(_: rlua::Context<'_>, file: String) -> rlua::Result<bool>
+{
+    let path = Path::new(&file);
+    return Ok(path.is_dir());
+}
+
+fn io_list(_: rlua::Context<'_>, file: String) -> rlua::Result<Vec<String>>
+{
+    let mut v: Vec<String> = Vec::new();
+    let path = Path::new(&file);
+
+    match path.read_dir()
+    {
+        Ok(entries) =>
+        {
+            for entry in entries
+            {
+                match entry
+                {
+                    Ok(vv) => v.push(String::from(vv.path().to_string_lossy().to_owned())),
+                    Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
+                }
+            }
+            return Ok(v);
+        },
+        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
+    }
+}
+
 impl LuaFile
 {
     pub fn new() -> LuaFile
@@ -208,8 +237,11 @@ impl LuaFile
         {
             let tbl = ctx.create_table()?;
             tbl.set("Run", ctx.create_function(run_command_lua)?)?;
-            tbl.set("RunOutput", ctx.create_function(run_command_with_output_lua)?)?;
+            tbl.set("RunWithOutput", ctx.create_function(run_command_with_output_lua)?)?;
             ctx.globals().set("command", tbl)?;
+            let io: rlua::Table = ctx.globals().get("io")?;
+            io.set("isdir", ctx.create_function(io_isdir)?)?;
+            io.set("list", ctx.create_function(io_list)?)?;
             return Ok(());
         });
         match res

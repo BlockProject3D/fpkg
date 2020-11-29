@@ -1,13 +1,17 @@
 PackageInfo = {
     Name = "zlib-static",
     Version = "1.0",
-    Description = "zlib library FPKG package",
+    Description = "zlib static library FPKG package",
     Configurations = {"Debug", "Release"}
 }
 
 function Build(profile)
-    command.Run("git", {"clone", "https://github.com/madler/zlib.git"})
-    command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+    if not(io.isdir("zlib")) then
+        command.Run("git", {"clone", "https://github.com/madler/zlib.git"})
+    end
+    if not(io.isdir("zlib-"..profile.Configuration)) then
+        command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+    end
     command.Run("cmake", {"--build", "zlib-"..profile.Configuration, "--config", profile.Configuration, "--target", "zlibstatic"})
 end
 
