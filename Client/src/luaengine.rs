@@ -110,8 +110,9 @@ impl FromLua<'_> for ConfiguredTarget
     {
         if let rlua::Value::Table(table) = val
         {
-            let path: String = table.get(0)?;
-            let config: String = table.get(1)?;
+            let path: String = table.get(1)?;
+            let config: String = table.get(2)?;
+
             return Ok(ConfiguredTarget
             {
                 path: path,
