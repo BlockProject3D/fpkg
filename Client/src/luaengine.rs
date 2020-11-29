@@ -239,9 +239,10 @@ impl LuaFile
             tbl.set("Run", ctx.create_function(run_command_lua)?)?;
             tbl.set("RunWithOutput", ctx.create_function(run_command_with_output_lua)?)?;
             ctx.globals().set("command", tbl)?;
-            let io: rlua::Table = ctx.globals().get("io")?;
-            io.set("isdir", ctx.create_function(io_isdir)?)?;
-            io.set("list", ctx.create_function(io_list)?)?;
+            let io = ctx.create_table()?;
+            io.set("IsDirectory", ctx.create_function(io_isdir)?)?;
+            io.set("List", ctx.create_function(io_list)?)?;
+            ctx.globals().set("file", io)?;
             return Ok(());
         });
         match res

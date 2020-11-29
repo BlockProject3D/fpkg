@@ -6,10 +6,10 @@ PackageInfo = {
 }
 
 function Build(profile)
-    if not(io.isdir("zlib")) then
+    if not(file.IsDirectory("zlib")) then
         command.Run("git", {"clone", "https://github.com/madler/zlib.git"})
     end
-    if not(io.isdir("zlib-"..profile.Configuration)) then
+    if not(file.IsDirectory("zlib-"..profile.Configuration)) then
         command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
     end
     command.Run("cmake", {"--build", "zlib-"..profile.Configuration, "--config", profile.Configuration, "--target", "zlibstatic"})
