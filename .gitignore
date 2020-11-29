@@ -1,2 +1,7 @@
 target
 .fpkg
+Debug
+Release
+zlib
+zlib-Debug
+zlib-Release

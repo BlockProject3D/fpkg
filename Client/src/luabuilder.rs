@@ -140,7 +140,7 @@ impl Builder for LuaBuilder
         let package = lua.read_table()?;
         let acfg = check_build_configuration(config, &package.configurations)?;
 
-        println!("Building {} - {} ({})...", package.name, package.version, package.description);
+        println!("Building {} - {} ({}) with Lua Engine...", package.name, package.version, package.description);
         check_system(&profile, &package.systems)?;
         check_arch(&profile, &package.architectures)?;
         check_compiler(&profile, &package.compilers)?;

@@ -74,7 +74,7 @@ fn handle_install_command(platform: Option<&str>) -> i32
     }
 }
 
-pub fn handle_build_command(config: &str) -> i32
+fn handle_build_command(config: &str) -> i32
 {
     let path = Path::new(".");
     let builder = builder::find_builder(path);

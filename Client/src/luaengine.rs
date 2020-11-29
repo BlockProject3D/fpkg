@@ -98,6 +98,35 @@ impl FromLua<'_> for Dependency
     }
 }
 
+pub struct ConfiguredTarget
+{
+    pub path: String,
+    pub configuration: String
+}
+
+impl FromLua<'_> for ConfiguredTarget
+{
+    fn from_lua(val: rlua::Value<'_>, _: rlua::Context<'_>) -> std::result::Result<Self, rlua::Error>
+    {
+        if let rlua::Value::Table(table) = val
+        {
+            let path: String = table.get(0)?;
+            let config: String = table.get(1)?;
+            return Ok(ConfiguredTarget
+            {
+                path: path,
+                configuration: config
+            });
+        }
+        return Err(rlua::Error::FromLuaConversionError
+        {
+            from: "ConfiguredTarget",
+            to: "ConfiguredTarget",
+            message: Some(String::from("Could not load table"))
+        });        
+    }
+}
+
 pub struct PackageTable
 {
     pub name: String,
@@ -108,6 +137,14 @@ pub struct PackageTable
     pub architectures: Option<Vec<String>>,
     pub compilers: Option<Vec<Compiler>>,
     pub dependencies: Option<Vec<Dependency>>
+}
+
+pub struct Target
+{
+    pub typefkjh: String,
+    pub includes: Option<Vec<ConfiguredTarget>>,
+    pub binaries: Option<Vec<ConfiguredTarget>>,
+    pub content: Option<Vec<String>>
 }
 
 pub struct LuaFile
@@ -186,7 +223,7 @@ impl LuaFile
         let res: rlua::Result<PackageTable> = self.state.context(|ctx|
         {
             let globals = ctx.globals();
-            let table: rlua::Table = globals.get("Package")?;
+            let table: rlua::Table = globals.get("PackageInfo")?;
             let name: String = table.get("Name")?;
             let desc: String = table.get("Description")?;
             let version: String = table.get("Version")?;
@@ -242,6 +279,42 @@ impl LuaFile
             {
                 Some(v) => return Ok(v),
                 None => return Ok(0)
+            }
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(e))
+        }
+    }
+
+    pub fn func_package(&mut self, profile: &Profile) -> Result<Option<Target>, Error>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let mut tbl = ctx.create_table()?;
+            profile.fill_table(&mut tbl)?;
+            let func: rlua::Function = ctx.globals().get("Package")?;
+            let res: Option<rlua::Table> = func.call(tbl)?;
+
+            match res
+            {
+                Some(v) =>
+                {
+                    let typedas: String = v.get("Type")?;
+                    let bins: Option<Vec<ConfiguredTarget>> = v.get("Binaries")?;
+                    let incs: Option<Vec<ConfiguredTarget>> = v.get("Includes")?;
+                    let cnt: Option<Vec<String>> = v.get("Content")?;
+
+                    return Ok(Some(Target
+                    {
+                        typefkjh: typedas,
+                        binaries: bins,
+                        includes: incs,
+                        content: cnt
+                    }));
+                },
+                None => return Ok(None)
             }
         });
         match res
