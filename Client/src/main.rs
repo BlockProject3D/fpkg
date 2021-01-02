@@ -57,9 +57,7 @@ mod installer;
 mod luaengine;
 mod luabuilder;
 mod packager;
-mod bpxp;
-mod garraylen;
-
+mod bpx;
 use std::path::Path;
 use clap::clap_app;
 

@@ -33,19 +33,11 @@ use std::fs::File;
 use std::path::Path;
 use std::vec::Vec;
 use std::io;
-use std::io::Read;
-use std::collections::HashMap;
+use std::boxed::Box;
 use byteorder::LittleEndian;
 use byteorder::ByteOrder;
-use xz::stream::Stream;
-
-use crate::garraylen::*;
-
-fn extract_slice<TArray: GenericArrayLen>(large_buf: &[u8], offset: usize) -> TArray::TArray
-{
-    let buf = &large_buf[offset..TArray::size];
-    return TArray::from_array(buf);
-}
+use super::garraylen::*;
+use super::section::*;
 
 #[derive(Copy, Clone)]
 struct BPXPMainHeader
@@ -85,88 +77,15 @@ impl BPXPMainHeader
     }
 }
 
-#[derive(Copy, Clone)]
-struct BPXSectionHeader
-{
-    pointer: u64, //+0
-    csize: u32, //+8
-    size: u32, //+12
-    chksum: u32, //+16
-    btype: u8, //+20
-    flags: u8 //+21
-}
 
 const FLAG_COMPRESS_ZLIB: u8 = 0x1;
-const FLAG_COMPRESS_XZ: u8 = 0x2;
 const FLAG_CHECK_ADDLER32: u8 = 0x4;
-const FLAG_CHECK_WEAK: u8 = 0x8;
-
-const SIZE_SECTION_HEADER: usize = 24;
-
-impl BPXSectionHeader
-{
-    fn read<TReader: io::Read>(reader: &mut TReader) -> io::Result<(u32, BPXSectionHeader)>
-    {
-        let mut buf: [u8;SIZE_SECTION_HEADER] = [0;SIZE_SECTION_HEADER];
-        let mut checksum: u32 = 0;
-
-        reader.read(&mut buf)?;
-        for i in 0..SIZE_SECTION_HEADER
-        {
-            checksum += buf[i] as u32;
-        }
-        return Ok((checksum, BPXSectionHeader {
-            pointer: LittleEndian::read_u64(&extract_slice::<T8>(&buf, 0)),
-            csize: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 8)),
-            size: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 12)),
-            chksum: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 16)),
-            btype: buf[20],
-            flags: buf[21]
-        }));
-    }
-}
 
 pub struct Decoder
 {
     main_header: BPXPMainHeader,
     sections: Vec<BPXSectionHeader>,
     file: File
-}
-
-fn inflate_section(data: Vec<u8>, inflated_size: usize) -> io::Result<Vec<u8>>
-{
-    let mut unpacked: Vec<u8> = Vec::with_capacity(inflated_size);
-    let mut decoder = match Stream::new_stream_decoder(inflated_size as u64, xz::stream::TELL_NO_CHECK)
-    {
-        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] inflate error: {}", e))),
-        Ok(v) => v
-    };
-    let mut status = xz::stream::Status::MemNeeded;
-
-    while status != xz::stream::Status::StreamEnd
-    {
-        match decoder.process_vec(&data, &mut unpacked, xz::stream::Action::Finish)
-        {
-            Ok(s) => status = s,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] inflate error: {}", e)))
-        }
-    }
-    return Ok(unpacked);
-}
-
-fn run_checksum(data: &[u8], expected_checksum: u32) -> io::Result<()>
-{
-    let mut chk: u32 = 0;
-
-    for i in 0..data.len()
-    {
-        chk += data[i] as u32;
-    }
-    if chk != expected_checksum
-    {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
-    }
-    return Ok(());
 }
 
 impl Decoder
@@ -196,7 +115,7 @@ impl Decoder
         return Ok(());
     }
 
-    fn find_section_by_type(&self, btype: u8) -> Option<BPXSectionHeader>
+    pub fn find_section_by_type(&self, btype: u8) -> Option<BPXSectionHeader>
     {
         for v in &self.sections
         {
@@ -208,23 +127,12 @@ impl Decoder
         return None;
     }
 
-    fn load_section(&mut self, section: &BPXSectionHeader) -> io::Result<Vec<u8>>
+    pub fn open_section(&mut self, section: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
     {
-        let mut data: Vec<u8> = Vec::with_capacity(section.csize as usize);
-
-        self.file.read(&mut data)?;
-        if section.flags & FLAG_COMPRESS_XZ == FLAG_COMPRESS_XZ
-        {
-            data = inflate_section(data, section.size as usize)?;
-        }
-        if section.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK
-        {
-            run_checksum(&data, section.chksum)?;
-        }
-        return Ok(data);
+        return open_section(&mut self.file, &section);
     }
 
-    fn load_string_section(&mut self) -> io::Result<HashMap<u32, String>>
+    /*fn load_string_section(&mut self) -> io::Result<HashMap<u32, String>>
     {
         if let Some(section) = self.find_section_by_type(255)
         {
@@ -256,7 +164,7 @@ impl Decoder
             return Ok(map);
         }
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] could not locate string section"));
-    }
+    }*/
 
     pub fn new(file: &Path) -> io::Result<Decoder>
     {
