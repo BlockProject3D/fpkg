@@ -177,9 +177,14 @@ impl Section for InMemorySection
     }
 }
 
+const SMALL_READ_BLOCK_SIZE: usize = 8192;
+
 struct FileBasedSection
 {
     data: File,
+    buffer: [u8; SMALL_READ_BLOCK_SIZE],
+    written: usize,
+    cursor: usize
 }
 
 impl FileBasedSection
@@ -188,7 +193,10 @@ impl FileBasedSection
     {
         return FileBasedSection
         {
-            data: data
+            data: data,
+            buffer: [0; SMALL_READ_BLOCK_SIZE],
+            written: 0,
+            cursor: usize::MAX
         };
     }
 }
@@ -197,7 +205,23 @@ impl io::Read for FileBasedSection
 {
     fn read(&mut self, data: &mut [u8]) -> io::Result<usize>
     {
-        return self.data.read(data);
+        let mut cnt: usize = 0;
+
+        for i in 0..data.len()
+        {
+            if self.cursor >= self.written
+            {
+                self.cursor = 0;
+                self.written = self.data.read(&mut self.buffer)?;
+            }
+            if self.cursor < self.written
+            {
+                data[i] = self.buffer[self.cursor];
+                self.cursor += 1;
+                cnt += 1;
+            }
+        }
+        return Ok(cnt);
     }
 }
 
@@ -210,6 +234,8 @@ impl io::Write for FileBasedSection
 
     fn flush(&mut self) -> io::Result<()>
     {
+        self.data.seek(io::SeekFrom::Current(self.cursor as i64))?;
+        self.cursor = usize::MAX;
         return self.data.flush();
     }
 }
