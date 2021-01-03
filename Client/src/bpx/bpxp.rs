@@ -81,6 +81,8 @@ impl BPXPMainHeader
 const FLAG_COMPRESS_ZLIB: u8 = 0x1;
 const FLAG_CHECK_ADDLER32: u8 = 0x4;
 
+const STRING_SECTION_TYPE: u8 = 0xFF;
+
 pub struct Decoder
 {
     main_header: BPXPMainHeader,
@@ -127,9 +129,31 @@ impl Decoder
         return None;
     }
 
+    pub fn find_all_sections_of_type(&self, btype: u8) -> Vec<BPXSectionHeader>
+    {
+        let mut v = Vec::new();
+
+        for s in &self.sections
+        {
+            if s.btype == btype
+            {
+                v.push(*s);
+            }
+        }        
+        return v;
+    }
+
     pub fn open_section(&mut self, section: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
     {
         return open_section(&mut self.file, &section);
+    }
+
+    fn load_string_section(&mut self)
+    {
+        if let Some(section) = self.find_section_by_type(255)
+        {
+            
+        }
     }
 
     /*fn load_string_section(&mut self) -> io::Result<HashMap<u32, String>>
