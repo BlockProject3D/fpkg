@@ -27,10 +27,8 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use std::io::SeekFrom;
-use std::io::Read;
 use std::io::Result;
 use std::string::String;
-use std::io::BufReader;
 use std::io::Error;
 use std::io::ErrorKind;
 use super::section::Section;
@@ -38,14 +36,14 @@ use super::section::Section;
 pub fn get_string(ptr: u32, string_section: &mut dyn Section) -> Result<String>
 {
     let mut curs: Vec<u8> = Vec::new();
-    let mut reader = BufReader::new(string_section);
     let mut chr: [u8; 1] = [0; 1]; //read char by char with a buffer
 
     string_section.seek(SeekFrom::Start(ptr as u64))?;
-    reader.read(&mut chr);
+    string_section.read(&mut chr)?;
     while chr[0] != 0x0
     {
         curs.push(chr[0]);
+        string_section.read(&mut chr)?;
     }
     match String::from_utf8(curs)
     {
