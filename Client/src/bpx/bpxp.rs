@@ -31,6 +31,7 @@
 
 use std::fs::File;
 use std::path::Path;
+use std::borrow::BorrowMut;
 use std::vec::Vec;
 use std::io;
 use std::boxed::Box;
@@ -65,7 +66,7 @@ impl BPXPMainHeader
         {
             checksum += buf[i] as u32;
         }
-        return Ok((checksum, BPXPMainHeader {
+        let head = BPXPMainHeader {
             signature: extract_slice::<T3>(&buf, 0),
             btype: buf[3],
             chksum: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 4)),
@@ -73,7 +74,34 @@ impl BPXPMainHeader
             section_num: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 16)),
             version: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 20)),
             file_count: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 24))
-        }));
+        };
+        if head.signature[0] != 'B' as u8 || head.signature[1] != 'P' as u8 || head.signature[2] != 'X' as u8
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] File is not a BPX: incorrect signature"));
+        }
+        if head.btype != 'P' as u8
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unknown type of BPX: {}", head.btype as char)));
+        }
+        if head.version != 0x1
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unsupported version of BPX: {}", head.version)));
+        }
+        return Ok((checksum, head));
+    }
+
+    fn new() -> BPXPMainHeader
+    {
+        return BPXPMainHeader
+        {
+            signature: ['B' as u8, 'P' as u8, 'X' as u8], //+0
+            btype: 'P' as u8, //+3
+            chksum: 0, //+4
+            file_size: SIZE_MAIN_HEADER as u64, //+8
+            section_num: 0, //+16
+            version: 0x1, //+20
+            file_count: 0 //+24
+        }
     }
 }
 
@@ -148,47 +176,14 @@ impl Decoder
         return open_section(&mut self.file, &section);
     }
 
-    fn load_string_section(&mut self)
+    fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
     {
         if let Some(section) = self.find_section_by_type(255)
         {
-            
-        }
-    }
-
-    /*fn load_string_section(&mut self) -> io::Result<HashMap<u32, String>>
-    {
-        if let Some(section) = self.find_section_by_type(255)
-        {
-            let mut map: HashMap<u32, String> = HashMap::new();
-            let data = self.load_section(&section)?;
-            let mut ptr: u32 = 0;
-            let mut curs: Vec<u8> = Vec::new();
-
-            for i in 0..section.size
-            {
-                if data[i as usize] != 0x0
-                {
-                    curs.push(data[i as usize]);
-                }
-                else
-                {
-                    match String::from_utf8(curs)
-                    {
-                        Ok(v) =>
-                        {
-                            map.insert(ptr, v);
-                        },
-                        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] error loading utf8 string: {}", e)))
-                    };
-                    curs = Vec::new();
-                    ptr = i + 1;
-                }
-            }
-            return Ok(map);
+            return self.open_section(&section);
         }
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] could not locate string section"));
-    }*/
+    }
 
     pub fn new(file: &Path) -> io::Result<Decoder>
     {
@@ -214,10 +209,45 @@ impl Decoder
 
 pub struct Encoder
 {
-
+    main_header: BPXPMainHeader,
+    sections: Vec<BPXSectionHeader>,
+    sections_data: Vec<Box<dyn Section>>,
+    file: File
 }
 
 impl Encoder
 {
+    pub fn new(file: &Path) -> io::Result<Encoder>
+    {
+        let mut fle = File::create(file)?;
+        return Ok(Encoder
+        {
+            main_header: BPXPMainHeader::new(),
+            sections: Vec::new(),
+            sections_data: Vec::new(),
+            file: fle
+        });
+    }
 
+    //Adds a new section; returns a reference to the new section for use in edit_section
+    pub fn add_section(&mut self, btype: u8, size: u32 /* use 0 for automatic size */) -> io::Result<usize>
+    {
+        let header = BPXSectionHeader::new(size, btype);
+        let section = create_section(&header)?;
+        self.sections.push(header);
+        let r = self.sections.len() - 1;
+        self.sections_data.push(section);
+        return Ok(r);
+    }
+
+    pub fn edit_section<T>(&mut self, reference: usize, callback: fn (section: &mut Box<dyn Section>) -> io::Result<T>) -> io::Result<T>
+    {
+        let section = &mut self.sections_data[reference];
+        let res = callback(section)?;
+        if section.size() > u32::MAX as usize
+        {
+            panic!("BPX cannot support individual sections with size exceeding 4Gb (2 pow 32)");
+        }
+        return Ok(res);
+    }
 }

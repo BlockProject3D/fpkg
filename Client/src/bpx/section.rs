@@ -72,6 +72,19 @@ impl BPXSectionHeader
         }));
     }
 
+    pub fn new(size: u32, btype: u8) -> BPXSectionHeader
+    {
+        return BPXSectionHeader
+        {
+            pointer: 0,
+            csize: 0,
+            size: size,
+            chksum: 0,
+            btype: btype,
+            flags: FLAG_CHECK_WEAK
+        };
+    }
+
     pub fn is_huge_section(&self) -> bool
     {
         return self.size > 1000000; //Return true if uncompressed size is greater than 100Mb
@@ -81,12 +94,14 @@ impl BPXSectionHeader
 pub trait Section : io::Read + io::Write + io::Seek
 {
     fn load_in_memory(&mut self) -> io::Result<Vec<u8>>;
+    fn size(&self) -> usize; //The computed size of the section
 }
 
 struct InMemorySection
 {
     data: Vec<u8>,
-    cursor: usize
+    cursor: usize,
+    cur_size: usize
 }
 
 impl InMemorySection
@@ -96,7 +111,8 @@ impl InMemorySection
         return InMemorySection
         {
             data: data,
-            cursor: 0
+            cursor: 0,
+            cur_size: 0
         }
     }
 }
@@ -123,11 +139,16 @@ impl io::Write for InMemorySection
     {
         for i in 0..data.len()
         {
-            if self.cursor + i >= self.data.len()
+            if self.cursor >= self.data.len()
             {
                 return Ok(i);
             }
-            self.data[self.cursor + i] = data[i];
+            self.data[self.cursor] = data[i];
+            self.cursor += 1;
+            if self.cursor >= self.cur_size
+            {
+                self.cur_size += 1
+            }
         }
         return Ok(data.len())
     }
@@ -175,6 +196,11 @@ impl Section for InMemorySection
     {
         return Ok(self.data.clone());
     }
+
+    fn size(&self) -> usize
+    {
+        return self.cur_size;
+    }
 }
 
 const SMALL_READ_BLOCK_SIZE: usize = 8192;
@@ -184,7 +210,9 @@ struct FileBasedSection
     data: File,
     buffer: [u8; SMALL_READ_BLOCK_SIZE],
     written: usize,
-    cursor: usize
+    cursor: usize,
+    cur_size: usize,
+    seek_ptr: u64
 }
 
 impl FileBasedSection
@@ -196,7 +224,9 @@ impl FileBasedSection
             data: data,
             buffer: [0; SMALL_READ_BLOCK_SIZE],
             written: 0,
-            cursor: usize::MAX
+            cursor: usize::MAX,
+            cur_size: 0,
+            seek_ptr: 0
         };
     }
 }
@@ -229,7 +259,13 @@ impl io::Write for FileBasedSection
 {
     fn write(&mut self, data: &[u8]) -> io::Result<usize>
     {
-        return self.data.write(data);
+        let len = self.data.write(data)?;
+        if self.seek_ptr >= self.cur_size as u64
+        {
+            self.cur_size += len;
+            self.seek_ptr += len as u64;
+        }
+        return Ok(len);
     }
 
     fn flush(&mut self) -> io::Result<()>
@@ -244,7 +280,8 @@ impl io::Seek for FileBasedSection
 {
     fn seek(&mut self, state: io::SeekFrom) -> io::Result<u64>
     {
-        return self.data.seek(state);
+        self.seek_ptr = self.data.seek(state)?;
+        return Ok(self.seek_ptr);
     }
 }
 
@@ -255,6 +292,11 @@ impl Section for FileBasedSection
         let mut data: Vec<u8> = Vec::new();
         self.data.read_to_end(&mut data)?;
         return Ok(data);
+    }
+
+    fn size(&self) -> usize
+    {
+        return self.cur_size;
     }
 }
 
@@ -385,5 +427,21 @@ pub fn open_section(bpx: &mut File, header: &BPXSectionHeader) -> io::Result<Box
     {
         let data = load_section_in_memory(bpx, &header)?;
         return Ok(Box::from(data));
+    }
+}
+
+pub fn create_section(header: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
+{
+    if header.is_huge_section() || header.size == 0
+    {
+        let mut section = FileBasedSection::new(tempfile::tempfile()?);
+        section.seek(io::SeekFrom::Start(0))?;
+        return Ok(Box::from(section));
+    }
+    else
+    {
+        let mut section = InMemorySection::new(vec![0; header.size as usize]);
+        section.seek(io::SeekFrom::Start(0))?;
+        return Ok(Box::from(section));
     }
 }
