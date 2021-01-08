@@ -32,8 +32,9 @@ use std::string::String;
 use std::io::Error;
 use std::io::ErrorKind;
 use super::section::Section;
+use std::boxed::Box;
 
-pub fn get_string(ptr: u32, string_section: &mut dyn Section) -> Result<String>
+pub fn get_string(ptr: u32, string_section: &mut Box<dyn Section>) -> Result<String>
 {
     let mut curs: Vec<u8> = Vec::new();
     let mut chr: [u8; 1] = [0; 1]; //read char by char with a buffer

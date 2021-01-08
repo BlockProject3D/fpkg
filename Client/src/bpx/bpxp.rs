@@ -26,11 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//BPX Type P implementation, if working will replace the current type P
-//Base structure > String Section > Archive section
-
 use std::fs::File;
 use std::path::Path;
+use std::path::PathBuf;
 use std::vec::Vec;
 use std::io;
 use std::io::Write;
@@ -40,6 +38,8 @@ use byteorder::LittleEndian;
 use byteorder::ByteOrder;
 use super::garraylen::*;
 use super::section::*;
+use super::strings::*;
+use std::fs::metadata;
 
 #[derive(Copy, Clone)]
 pub struct BPXPMainHeader
@@ -70,7 +70,6 @@ impl BPXPMainHeader
                 checksum += buf[i] as u32;
             }
         }
-        println!("Early chksum calculation = {}", checksum);
         let head = BPXPMainHeader {
             signature: extract_slice::<T3>(&buf, 0),
             btype: buf[3],
@@ -144,11 +143,13 @@ impl BPXPMainHeader
     }
 }
 
-
 const FLAG_COMPRESS_ZLIB: u8 = 0x1;
 const FLAG_CHECK_ADDLER32: u8 = 0x4;
 
 const STRING_SECTION_TYPE: u8 = 0xFF;
+const DATA_SECTION_TYPE: u8 = 0x1;
+
+const DATA_WRITE_BUFFER_SIZE: usize = 8192;
 
 pub struct Decoder
 {
@@ -217,7 +218,7 @@ impl Decoder
 
     fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
     {
-        if let Some(section) = self.find_section_by_type(255)
+        if let Some(section) = self.find_section_by_type(STRING_SECTION_TYPE)
         {
             return self.open_section(&section);
         }
@@ -235,14 +236,55 @@ impl Decoder
             main_header: header,
             sections: Vec::with_capacity(num as usize)
         };
-
         decoder.read_section_header_table(checksum)?;
         return Ok(decoder);
     }
 
-    pub fn extract_content(&mut self, target: &Path)
+    fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u32) -> io::Result<()>
     {
-        
+        let mut fle = File::create(dest)?;
+        let mut v: Vec<u8> = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
+        let mut count: u32 = 0;
+        while count < size
+        {
+            let mut byte: [u8; 1] = [0; 1];
+            source.read(&mut byte)?;
+            v.push(byte[0]);
+            if v.len() >= DATA_WRITE_BUFFER_SIZE
+            {
+                fle.write(&v)?;
+                v = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
+            }
+            count += 1;
+        }
+        return Ok(());
+    }
+
+    pub fn extract_content(&mut self, target: &Path) -> io::Result<()>
+    {
+        let mut strings = self.load_string_section()?;
+        let secs = self.find_all_sections_of_type(DATA_SECTION_TYPE);
+        for v in secs
+        {
+            let mut section = self.open_section(&v)?;
+            let mut fcountbuf: [u8; 4] = [0; 4];
+            section.read(&mut fcountbuf)?;
+            let mut count = LittleEndian::read_u32(&fcountbuf);
+            while count > 0
+            {
+                let mut namebuf: [u8; 4] = [0; 4];
+                let mut sizebuf: [u8; 4] = [0; 4];
+                section.read(&mut namebuf)?;
+                section.read(&mut sizebuf)?;
+                let path = get_string(LittleEndian::read_u32(&namebuf), &mut strings)?;
+                let mut dest = PathBuf::new();
+                dest.push(target);
+                dest.push(path);
+                self.extract_file(&mut section, &dest, LittleEndian::read_u32(&sizebuf))?;
+                count -= 1;
+            }
+        }
+        return Ok(());
     }
 }
 
