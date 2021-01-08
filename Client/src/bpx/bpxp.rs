@@ -34,6 +34,7 @@ use std::path::Path;
 use std::vec::Vec;
 use std::io;
 use std::io::Write;
+use std::io::Read;
 use std::boxed::Box;
 use byteorder::LittleEndian;
 use byteorder::ByteOrder;
@@ -285,9 +286,9 @@ impl Encoder
         return Ok(res);
     }
 
-    fn write_compress_sections(&mut self) -> io::Result<(File, u32)>
+    fn write_compress_sections(&mut self) -> io::Result<(File, u32, usize)>
     {
-        let mut full_size: u64 = SIZE_MAIN_HEADER as u64;
+        let mut all_sections_size: usize = 0;
         let mut chksum_sht: u32 = 0;
         let mut ptr: u64 = SIZE_MAIN_HEADER as u64 + (self.sections.len() as u64 * SIZE_SECTION_HEADER as u64);
         let mut f = tempfile::tempfile()?;
@@ -300,21 +301,35 @@ impl Encoder
             self.sections[i].pointer = ptr;
             ptr += csize as u64;
             chksum_sht += self.sections[i].get_checksum();
-            full_size += SIZE_SECTION_HEADER as u64 + csize as u64;
+            all_sections_size += csize;
         }
-        self.main_header.file_size = full_size;
-        return Ok((f, chksum_sht));
+        return Ok((f, chksum_sht, all_sections_size));
+    }
+
+    fn write_data_file(&mut self, fle: &mut File, all_sections_size: usize) -> io::Result<()>
+    {
+        let mut idata: [u8; 8192] = [0; 8192];
+        let mut count: usize = 0;
+        while count < all_sections_size
+        {
+            let res = fle.read(&mut idata)?;
+            self.file.write(&idata[0..res])?;
+            count += res;
+        }
+        return Ok(());
     }
 
     pub fn save(&mut self) -> io::Result<()>
     {
-        let (main_data, chksum_sht) = self.write_compress_sections()?;
+        let (mut main_data, chksum_sht, all_sections_size) = self.write_compress_sections()?;
+        self.main_header.file_size = all_sections_size as u64 + (self.sections.len() * SIZE_SECTION_HEADER) as u64 + SIZE_MAIN_HEADER as u64;
         self.main_header.chksum = chksum_sht + self.main_header.get_checksum();
         self.main_header.write(&mut self.file)?;
         for v in &self.sections
         {
             v.write(&mut self.file)?;
         }
+        self.write_data_file(&mut main_data, all_sections_size)?;
         return Ok(());
     }
 }
