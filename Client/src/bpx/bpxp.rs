@@ -42,7 +42,7 @@ use super::garraylen::*;
 use super::section::*;
 
 #[derive(Copy, Clone)]
-struct BPXPMainHeader
+pub struct BPXPMainHeader
 {
     signature: [u8;3], //+0
     btype: u8, //+3
@@ -65,16 +65,20 @@ impl BPXPMainHeader
         reader.read(&mut buf)?;
         for i in 0..SIZE_MAIN_HEADER
         {
-            checksum += buf[i] as u32;
+            if i < 4 || i > 7
+            {
+                checksum += buf[i] as u32;
+            }
         }
+        println!("Early chksum calculation = {}", checksum);
         let head = BPXPMainHeader {
             signature: extract_slice::<T3>(&buf, 0),
             btype: buf[3],
-            chksum: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 4)),
-            file_size: LittleEndian::read_u64(&extract_slice::<T8>(&buf, 8)),
-            section_num: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 16)),
-            version: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 20)),
-            file_count: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 24))
+            chksum: LittleEndian::read_u32(&buf[4..8]),
+            file_size: LittleEndian::read_u64(&buf[8..16]),
+            section_num: LittleEndian::read_u32(&buf[16..20]),
+            version: LittleEndian::read_u32(&buf[20..24]),
+            file_count: LittleEndian::read_u32(&buf[24..28])
         };
         if head.signature[0] != 'B' as u8 || head.signature[1] != 'P' as u8 || head.signature[2] != 'X' as u8
         {
@@ -148,7 +152,7 @@ const STRING_SECTION_TYPE: u8 = 0xFF;
 
 pub struct Decoder
 {
-    main_header: BPXPMainHeader,
+    pub main_header: BPXPMainHeader,
     sections: Vec<BPXSectionHeader>,
     file: File
 }
@@ -173,6 +177,7 @@ impl Decoder
             final_checksum += checksum;
             self.sections.push(header);
         }
+        println!("Calculated checksum = {}, Saved checksum = {}", final_checksum, self.main_header.chksum);
         if final_checksum != self.main_header.chksum
         {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
@@ -331,5 +336,27 @@ impl Encoder
         }
         self.write_data_file(&mut main_data, all_sections_size)?;
         return Ok(());
+    }
+}
+
+
+#[cfg(test)]
+mod tests
+{
+    use super::Encoder;
+    use super::Decoder;
+    use super::SIZE_MAIN_HEADER;
+    use super::SIZE_SECTION_HEADER;
+
+    #[test]
+    fn attempt_write_empty_bpxp()
+    {
+        let mut encoder = Encoder::new(std::path::Path::new("./the_very_first_bpx.bpx")).unwrap();
+        encoder.save().unwrap();
+        let decoder = Decoder::new(std::path::Path::new("./the_very_first_bpx.bpx")).unwrap();
+        assert_eq!(decoder.main_header.section_num, 0);
+        assert_eq!(decoder.main_header.version, 1);
+        assert_eq!(decoder.main_header.file_size, (SIZE_MAIN_HEADER + SIZE_SECTION_HEADER) as u64);
+        assert_eq!(decoder.main_header.file_count, 0);
     }
 }
