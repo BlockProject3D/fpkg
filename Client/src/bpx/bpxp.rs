@@ -345,8 +345,6 @@ mod tests
 {
     use super::Encoder;
     use super::Decoder;
-    use super::SIZE_MAIN_HEADER;
-    use super::SIZE_SECTION_HEADER;
 
     #[test]
     fn attempt_write_empty_bpxp()
@@ -356,7 +354,7 @@ mod tests
         let decoder = Decoder::new(std::path::Path::new("./the_very_first_bpx.bpx")).unwrap();
         assert_eq!(decoder.main_header.section_num, 0);
         assert_eq!(decoder.main_header.version, 1);
-        assert_eq!(decoder.main_header.file_size, (SIZE_MAIN_HEADER + SIZE_SECTION_HEADER) as u64);
+        assert_eq!(decoder.main_header.file_size, 40);
         assert_eq!(decoder.main_header.file_count, 0);
     }
 }
