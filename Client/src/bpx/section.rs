@@ -62,10 +62,7 @@ impl BPXSectionHeader
         reader.read(&mut buf)?;
         for i in 0..SIZE_SECTION_HEADER
         {
-            if i < 16 || i > 19
-            {
-                checksum += buf[i] as u32;
-            }
+            checksum += buf[i] as u32;
         }
         return Ok((checksum, BPXSectionHeader {
             pointer: LittleEndian::read_u64(&extract_slice::<T8>(&buf, 0)),
