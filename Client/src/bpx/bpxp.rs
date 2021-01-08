@@ -242,7 +242,10 @@ impl Decoder
 
     fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u32) -> io::Result<()>
     {
-        std::fs::create_dir_all(dest)?;
+        if let Some(v) = dest.parent()
+        {
+            std::fs::create_dir_all(v)?;
+        }
         let mut fle = File::create(dest)?;
         let mut v: Vec<u8> = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
         let mut count: u32 = 0;
