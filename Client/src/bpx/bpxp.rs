@@ -242,6 +242,7 @@ impl Decoder
 
     fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u32) -> io::Result<()>
     {
+        std::fs::create_dir_all(dest)?;
         let mut fle = File::create(dest)?;
         let mut v: Vec<u8> = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
         let mut count: u32 = 0;
@@ -260,7 +261,7 @@ impl Decoder
         return Ok(());
     }
 
-    pub fn extract_content(&mut self, target: &Path) -> io::Result<()>
+    pub fn unpack(&mut self, target: &Path) -> io::Result<()>
     {
         let mut strings = self.load_string_section()?;
         let secs = self.find_all_sections_of_type(DATA_SECTION_TYPE);
