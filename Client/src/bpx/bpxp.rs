@@ -31,7 +31,6 @@
 
 use std::fs::File;
 use std::path::Path;
-use std::borrow::BorrowMut;
 use std::vec::Vec;
 use std::io;
 use std::boxed::Box;
@@ -103,6 +102,40 @@ impl BPXPMainHeader
             file_count: 0 //+24
         }
     }
+
+    fn to_bytes(&self) -> [u8; SIZE_MAIN_HEADER]
+    {
+        let mut block: [u8; SIZE_MAIN_HEADER] = [0; SIZE_MAIN_HEADER];
+        block[0] = self.signature[0];
+        block[1] = self.signature[1];
+        block[2] = self.signature[2];
+        block[3] = self.btype;
+        LittleEndian::write_u32(&mut block[4..8], self.chksum);
+        LittleEndian::write_u64(&mut block[8..16], self.file_size);
+        LittleEndian::write_u32(&mut block[16..20], self.section_num);
+        LittleEndian::write_u32(&mut block[20..24], self.version);
+        LittleEndian::write_u32(&mut block[24..28], self.file_count);
+        return block;
+    }
+
+    fn get_checksum(&self) -> u32
+    {
+        let mut checksum: u32 = 0;
+        let buf = self.to_bytes();
+        for i in 0..SIZE_MAIN_HEADER
+        {
+            checksum += buf[i] as u32;
+        }
+        return checksum;
+    }
+
+    fn write<TWriter: io::Write>(&self, writer: &mut TWriter) -> io::Result<()>
+    {
+        let buf = self.to_bytes();
+        writer.write(&buf)?;
+        writer.flush()?;
+        return Ok(());
+    }
 }
 
 
@@ -160,7 +193,6 @@ impl Decoder
     pub fn find_all_sections_of_type(&self, btype: u8) -> Vec<BPXSectionHeader>
     {
         let mut v = Vec::new();
-
         for s in &self.sections
         {
             if s.btype == btype

@@ -76,18 +76,49 @@ impl BPXSectionHeader
     {
         return BPXSectionHeader
         {
-            pointer: 0,
-            csize: 0,
-            size: size,
-            chksum: 0,
-            btype: btype,
-            flags: FLAG_CHECK_WEAK
+            pointer: 0, //+0
+            csize: 0, //+8
+            size: size, //+12
+            chksum: 0, //+16
+            btype: btype, //+20
+            flags: FLAG_CHECK_WEAK // +21
         };
     }
 
     pub fn is_huge_section(&self) -> bool
     {
         return self.size > 1000000; //Return true if uncompressed size is greater than 100Mb
+    }
+
+    fn to_bytes(&self) -> [u8; SIZE_SECTION_HEADER]
+    {
+        let mut block: [u8; SIZE_SECTION_HEADER] = [0; SIZE_SECTION_HEADER];
+        LittleEndian::write_u64(&mut block[0..8], self.pointer);
+        LittleEndian::write_u32(&mut block[8..12], self.csize);
+        LittleEndian::write_u32(&mut block[12..16], self.size);
+        LittleEndian::write_u32(&mut block[16..20], self.chksum);
+        block[20] = self.btype;
+        block[21] = self.flags;
+        return block;
+    }
+
+    pub fn get_checksum(&self) -> u32
+    {
+        let mut checksum: u32 = 0;
+        let buf = self.to_bytes();
+        for i in 0..SIZE_SECTION_HEADER
+        {
+            checksum += buf[i] as u32;
+        }
+        return checksum;
+    }
+
+    pub fn write<TWriter: io::Write>(&self, writer: &mut TWriter) -> io::Result<()>
+    {
+        let buf = self.to_bytes();
+        writer.write(&buf)?;
+        writer.flush()?;
+        return Ok(());
     }
 }
 
