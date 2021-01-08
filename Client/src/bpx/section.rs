@@ -34,7 +34,6 @@ use std::io::Seek;
 use std::io::Write;
 use std::fs::File;
 use std::boxed::Box;
-use super::garraylen::*;
 use xz::stream::Stream;
 use xz::stream::LzmaOptions;
 use xz::stream::Filters;
@@ -65,10 +64,10 @@ impl BPXSectionHeader
             checksum += buf[i] as u32;
         }
         return Ok((checksum, BPXSectionHeader {
-            pointer: LittleEndian::read_u64(&extract_slice::<T8>(&buf, 0)),
-            csize: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 8)),
-            size: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 12)),
-            chksum: LittleEndian::read_u32(&extract_slice::<T4>(&buf, 16)),
+            pointer: LittleEndian::read_u64(&buf[0..8]),
+            csize: LittleEndian::read_u32(&buf[8..12]),
+            size: LittleEndian::read_u32(&buf[12..16]),
+            chksum: LittleEndian::read_u32(&buf[16..20]),
             btype: buf[20],
             flags: buf[21]
         }));
@@ -517,7 +516,7 @@ pub fn create_section(header: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
     }
 }
 
-pub fn write_section(section: &mut Box<dyn Section>, out: &mut Write) -> io::Result<(usize, u32, u8)>
+pub fn write_section(section: &mut Box<dyn Section>, out: &mut dyn Write) -> io::Result<(usize, u32, u8)>
 {
     if section.size() < READ_BLOCK_SIZE
     {

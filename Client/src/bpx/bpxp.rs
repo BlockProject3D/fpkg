@@ -258,7 +258,7 @@ impl Encoder
 {
     pub fn new(file: &Path) -> io::Result<Encoder>
     {
-        let mut fle = File::create(file)?;
+        let fle = File::create(file)?;
         return Ok(Encoder
         {
             main_header: BPXPMainHeader::new(),
@@ -336,25 +336,5 @@ impl Encoder
         }
         self.write_data_file(&mut main_data, all_sections_size)?;
         return Ok(());
-    }
-}
-
-
-#[cfg(test)]
-mod tests
-{
-    use super::Encoder;
-    use super::Decoder;
-
-    #[test]
-    fn attempt_write_empty_bpxp()
-    {
-        let mut encoder = Encoder::new(std::path::Path::new("./the_very_first_bpx.bpx")).unwrap();
-        encoder.save().unwrap();
-        let decoder = Decoder::new(std::path::Path::new("./the_very_first_bpx.bpx")).unwrap();
-        assert_eq!(decoder.main_header.section_num, 0);
-        assert_eq!(decoder.main_header.version, 1);
-        assert_eq!(decoder.main_header.file_size, 40);
-        assert_eq!(decoder.main_header.file_count, 0);
     }
 }
