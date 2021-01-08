@@ -33,6 +33,7 @@ use std::fs::File;
 use std::path::Path;
 use std::vec::Vec;
 use std::io;
+use std::io::Write;
 use std::boxed::Box;
 use byteorder::LittleEndian;
 use byteorder::ByteOrder;
@@ -264,6 +265,7 @@ impl Encoder
     //Adds a new section; returns a reference to the new section for use in edit_section
     pub fn add_section(&mut self, btype: u8, size: u32 /* use 0 for automatic size */) -> io::Result<usize>
     {
+        self.main_header.section_num += 1;
         let header = BPXSectionHeader::new(size, btype);
         let section = create_section(&header)?;
         self.sections.push(header);
@@ -281,5 +283,38 @@ impl Encoder
             panic!("BPX cannot support individual sections with size exceeding 4Gb (2 pow 32)");
         }
         return Ok(res);
+    }
+
+    fn write_compress_sections(&mut self) -> io::Result<(File, u32)>
+    {
+        let mut full_size: u64 = SIZE_MAIN_HEADER as u64;
+        let mut chksum_sht: u32 = 0;
+        let mut ptr: u64 = SIZE_MAIN_HEADER as u64 + (self.sections.len() as u64 * SIZE_SECTION_HEADER as u64);
+        let mut f = tempfile::tempfile()?;
+        for i in 0..self.sections.len()
+        {
+            let (csize, chksum, flags) = write_section(&mut self.sections_data[i], &mut f)?;
+            self.sections[i].csize = csize as u32;
+            self.sections[i].chksum = chksum;
+            self.sections[i].flags = flags;
+            self.sections[i].pointer = ptr;
+            ptr += csize as u64;
+            chksum_sht += self.sections[i].get_checksum();
+            full_size += SIZE_SECTION_HEADER as u64 + csize as u64;
+        }
+        self.main_header.file_size = full_size;
+        return Ok((f, chksum_sht));
+    }
+
+    pub fn save(&mut self) -> io::Result<()>
+    {
+        let (main_data, chksum_sht) = self.write_compress_sections()?;
+        self.main_header.chksum = chksum_sht + self.main_header.get_checksum();
+        self.main_header.write(&mut self.file)?;
+        for v in &self.sections
+        {
+            v.write(&mut self.file)?;
+        }
+        return Ok(());
     }
 }
