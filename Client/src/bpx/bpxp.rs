@@ -178,7 +178,6 @@ impl Decoder
             final_checksum += checksum;
             self.sections.push(header);
         }
-        println!("Calculated checksum = {}, Saved checksum = {}", final_checksum, self.main_header.chksum);
         if final_checksum != self.main_header.chksum
         {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
@@ -240,7 +239,7 @@ impl Decoder
         return Ok(decoder);
     }
 
-    fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u32) -> io::Result<()>
+    fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u64) -> io::Result<Option<(u64, File)>>
     {
         if let Some(v) = dest.parent()
         {
@@ -248,11 +247,14 @@ impl Decoder
         }
         let mut fle = File::create(dest)?;
         let mut v: Vec<u8> = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
-        let mut count: u32 = 0;
+        let mut count: u64 = 0;
         while count < size
         {
             let mut byte: [u8; 1] = [0; 1];
-            source.read(&mut byte)?;
+            if source.read(&mut byte)? == 0 && count < size
+            { //Well the file is divided in multiple sections signal the caller of the problen
+                return Ok(Some((size - count, fle)));
+            }
             v.push(byte[0]);
             if v.len() >= DATA_WRITE_BUFFER_SIZE
             {
@@ -261,30 +263,66 @@ impl Decoder
             }
             count += 1;
         }
-        return Ok(());
+        return Ok(None);
+    }
+
+    fn continue_file(&self, source: &mut dyn Read, out: &mut dyn Write, size: u64) -> io::Result<u64>
+    {
+        let mut v: Vec<u8> = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
+        let mut count: u64 = 0;
+        while count < size
+        {
+            let mut byte: [u8; 1] = [0; 1];
+            if source.read(&mut byte)? == 0 && count < size
+            { //Well the file is divided in multiple sections signal the caller of the problen
+                return Ok(size - count);
+            }
+            v.push(byte[0]);
+            if v.len() >= DATA_WRITE_BUFFER_SIZE
+            {
+                out.write(&v)?;
+                v = Vec::with_capacity(DATA_WRITE_BUFFER_SIZE);
+            }
+            count += 1;
+        }
+        return Ok(0);
     }
 
     pub fn unpack(&mut self, target: &Path) -> io::Result<()>
     {
         let mut strings = self.load_string_section()?;
         let secs = self.find_all_sections_of_type(DATA_SECTION_TYPE);
+        let mut truncated: Option<(u64, File)> = None;
         for v in secs
         {
             let mut section = self.open_section(&v)?;
+            if let Some((remaining, mut file)) = std::mem::replace(&mut truncated, None)
+            {
+                let res = self.continue_file(&mut section, &mut file, remaining)?;
+                if res > 0 //Still not finished
+                {
+                    truncated = Some((res, file));
+                    continue;
+                }
+            }
             let mut fcountbuf: [u8; 4] = [0; 4];
             section.read(&mut fcountbuf)?;
             let mut count = LittleEndian::read_u32(&fcountbuf);
             while count > 0
             {
+                let mut sizebuf: [u8; 8] = [0; 8];
                 let mut namebuf: [u8; 4] = [0; 4];
-                let mut sizebuf: [u8; 4] = [0; 4];
-                section.read(&mut namebuf)?;
                 section.read(&mut sizebuf)?;
+                section.read(&mut namebuf)?;
                 let path = get_string(LittleEndian::read_u32(&namebuf), &mut strings)?;
                 let mut dest = PathBuf::new();
                 dest.push(target);
                 dest.push(path);
-                self.extract_file(&mut section, &dest, LittleEndian::read_u32(&sizebuf))?;
+                truncated = self.extract_file(&mut section, &dest, LittleEndian::read_u64(&sizebuf))?;
+                if truncated.is_some()
+                {
+                    break;
+                }
                 count -= 1;
             }
         }
