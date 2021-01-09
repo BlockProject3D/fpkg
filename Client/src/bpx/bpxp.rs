@@ -337,6 +337,34 @@ impl Encoder
         return Ok(res);
     }
 
+    /*fn pack_file(&mut self, data_section: usize, source: &Path) -> io::Result<()>
+    {
+        return Ok(());
+    }
+
+    fn pack_dir(&mut self, data_section: usize, source: &Path) -> io::Result<()>
+    {
+        return Ok(());
+    }
+
+    pub fn pack(&mut self, source: &Path) -> io::Result<()>
+    {
+        if self.sections.len() == 0
+        {
+            self.string_section = self.add_section(STRING_SECTION_TYPE, 0)?;
+        }
+        let md = metadata(source)?;
+        let data_section = self.add_section(DATA_SECTION_TYPE, 0)?;
+        if md.is_file()
+        {
+            return self.pack_file(data_section, source);
+        }
+        else
+        {
+            return self.pack_dir(data_section, source);
+        }
+    }*/
+
     fn write_compress_sections(&mut self) -> io::Result<(File, u32, usize)>
     {
         let mut all_sections_size: usize = 0;
