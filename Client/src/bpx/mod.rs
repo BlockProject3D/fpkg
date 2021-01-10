@@ -27,6 +27,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 mod garraylen;
+pub mod bpx;
 pub mod bpxp;
 pub mod section;
 pub mod strings;

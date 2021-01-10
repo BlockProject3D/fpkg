@@ -88,7 +88,7 @@ impl BPXSectionHeader
 
     pub fn is_huge_section(&self) -> bool
     {
-        return self.size > 1000000; //Return true if uncompressed size is greater than 100Mb
+        return self.size > 1000000; //Return true if uncompressed size is greater than 1Mb
     }
 
     fn to_bytes(&self) -> [u8; SIZE_SECTION_HEADER]

@@ -36,207 +36,45 @@ use std::io::Read;
 use std::boxed::Box;
 use byteorder::LittleEndian;
 use byteorder::ByteOrder;
-use super::garraylen::*;
 use super::section::*;
 use super::strings::*;
 use std::fs::metadata;
+use std::fs::read_dir;
+use super::bpx;
 
-#[derive(Copy, Clone)]
-pub struct BPXPMainHeader
-{
-    signature: [u8;3], //+0
-    btype: u8, //+3
-    chksum: u32, //+4
-    file_size: u64, //+8
-    section_num: u32, //+16
-    version: u32, //+20
-    file_count: u32 //+24
-}
-
-const SIZE_MAIN_HEADER: usize = 40;
-
-impl BPXPMainHeader
-{
-    fn read<TReader: io::Read>(reader: &mut TReader) -> io::Result<(u32, BPXPMainHeader)>
-    {
-        let mut buf: [u8;SIZE_MAIN_HEADER] = [0;SIZE_MAIN_HEADER];
-        let mut checksum: u32 = 0;
-
-        reader.read(&mut buf)?;
-        for i in 0..SIZE_MAIN_HEADER
-        {
-            if i < 4 || i > 7
-            {
-                checksum += buf[i] as u32;
-            }
-        }
-        let head = BPXPMainHeader {
-            signature: extract_slice::<T3>(&buf, 0),
-            btype: buf[3],
-            chksum: LittleEndian::read_u32(&buf[4..8]),
-            file_size: LittleEndian::read_u64(&buf[8..16]),
-            section_num: LittleEndian::read_u32(&buf[16..20]),
-            version: LittleEndian::read_u32(&buf[20..24]),
-            file_count: LittleEndian::read_u32(&buf[24..28])
-        };
-        if head.signature[0] != 'B' as u8 || head.signature[1] != 'P' as u8 || head.signature[2] != 'X' as u8
-        {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] File is not a BPX: incorrect signature"));
-        }
-        if head.btype != 'P' as u8
-        {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unknown type of BPX: {}", head.btype as char)));
-        }
-        if head.version != 0x1
-        {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unsupported version of BPX: {}", head.version)));
-        }
-        return Ok((checksum, head));
-    }
-
-    fn new() -> BPXPMainHeader
-    {
-        return BPXPMainHeader
-        {
-            signature: ['B' as u8, 'P' as u8, 'X' as u8], //+0
-            btype: 'P' as u8, //+3
-            chksum: 0, //+4
-            file_size: SIZE_MAIN_HEADER as u64, //+8
-            section_num: 0, //+16
-            version: 0x1, //+20
-            file_count: 0 //+24
-        }
-    }
-
-    fn to_bytes(&self) -> [u8; SIZE_MAIN_HEADER]
-    {
-        let mut block: [u8; SIZE_MAIN_HEADER] = [0; SIZE_MAIN_HEADER];
-        block[0] = self.signature[0];
-        block[1] = self.signature[1];
-        block[2] = self.signature[2];
-        block[3] = self.btype;
-        LittleEndian::write_u32(&mut block[4..8], self.chksum);
-        LittleEndian::write_u64(&mut block[8..16], self.file_size);
-        LittleEndian::write_u32(&mut block[16..20], self.section_num);
-        LittleEndian::write_u32(&mut block[20..24], self.version);
-        LittleEndian::write_u32(&mut block[24..28], self.file_count);
-        return block;
-    }
-
-    fn get_checksum(&self) -> u32
-    {
-        let mut checksum: u32 = 0;
-        let buf = self.to_bytes();
-        for i in 0..SIZE_MAIN_HEADER
-        {
-            checksum += buf[i] as u32;
-        }
-        return checksum;
-    }
-
-    fn write<TWriter: io::Write>(&self, writer: &mut TWriter) -> io::Result<()>
-    {
-        let buf = self.to_bytes();
-        writer.write(&buf)?;
-        writer.flush()?;
-        return Ok(());
-    }
-}
-
-const FLAG_COMPRESS_ZLIB: u8 = 0x1;
-const FLAG_CHECK_ADDLER32: u8 = 0x4;
-
-const STRING_SECTION_TYPE: u8 = 0xFF;
 const DATA_SECTION_TYPE: u8 = 0x1;
 
 const DATA_WRITE_BUFFER_SIZE: usize = 8192;
+const MIN_DATA_REMAINING_SIZE: usize = DATA_WRITE_BUFFER_SIZE;
+const MAX_DATA_SECTION_SIZE: usize = 200000000 - MIN_DATA_REMAINING_SIZE; //200MB
 
 pub struct Decoder
 {
-    pub main_header: BPXPMainHeader,
-    sections: Vec<BPXSectionHeader>,
-    file: File
+    decoder: bpx::Decoder
 }
 
 impl Decoder
 {
-    fn read_section_header_table(&mut self, checksum: u32) -> io::Result<()>
+    pub fn new(file: &Path) -> io::Result<Decoder>
     {
-        let mut final_checksum = checksum;
-
-        for _ in 0..self.main_header.section_num
+        let decoder = bpx::Decoder::new(file)?;
+        if decoder.main_header.btype != 'P' as u8
         {
-            let (checksum, header) = BPXSectionHeader::read(&mut self.file)?;
-            if header.flags & FLAG_COMPRESS_ZLIB == FLAG_COMPRESS_ZLIB
-            {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] zlib compression is not supported by FPKG"));
-            }
-            if header.flags & FLAG_CHECK_ADDLER32 == FLAG_CHECK_ADDLER32
-            {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] addler32 checksum is not supported by FPKG"));
-            }
-            final_checksum += checksum;
-            self.sections.push(header);
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unknown type of BPX: {}", decoder.main_header.btype as char)));
         }
-        if final_checksum != self.main_header.chksum
+        return Ok(Decoder
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
-        }
-        return Ok(());
-    }
-
-    pub fn find_section_by_type(&self, btype: u8) -> Option<BPXSectionHeader>
-    {
-        for v in &self.sections
-        {
-            if v.btype == btype
-            {
-                return Some(*v);
-            }
-        }
-        return None;
-    }
-
-    pub fn find_all_sections_of_type(&self, btype: u8) -> Vec<BPXSectionHeader>
-    {
-        let mut v = Vec::new();
-        for s in &self.sections
-        {
-            if s.btype == btype
-            {
-                v.push(*s);
-            }
-        }        
-        return v;
-    }
-
-    pub fn open_section(&mut self, section: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
-    {
-        return open_section(&mut self.file, &section);
+            decoder: decoder
+        })
     }
 
     fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
     {
-        if let Some(section) = self.find_section_by_type(STRING_SECTION_TYPE)
+        if let Some(section) = self.decoder.find_section_by_type(bpx::STRING_SECTION_TYPE)
         {
-            return self.open_section(&section);
+            return self.decoder.open_section(&section);
         }
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] could not locate string section"));
-    }
-
-    pub fn new(file: &Path) -> io::Result<Decoder>
-    {
-        let mut fle = File::open(file)?;
-        let (checksum, header) = BPXPMainHeader::read(&mut fle)?;
-        let num = header.section_num;
-        let mut decoder = Decoder
-        {
-            file: fle,
-            main_header: header,
-            sections: Vec::with_capacity(num as usize)
-        };
-        decoder.read_section_header_table(checksum)?;
-        return Ok(decoder);
     }
 
     fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u64) -> io::Result<Option<(u64, File)>>
@@ -253,6 +91,7 @@ impl Decoder
             let mut byte: [u8; 1] = [0; 1];
             if source.read(&mut byte)? == 0 && count < size
             { //Well the file is divided in multiple sections signal the caller of the problen
+                fle.write(&v)?;
                 return Ok(Some((size - count, fle)));
             }
             v.push(byte[0]);
@@ -275,6 +114,7 @@ impl Decoder
             let mut byte: [u8; 1] = [0; 1];
             if source.read(&mut byte)? == 0 && count < size
             { //Well the file is divided in multiple sections signal the caller of the problen
+                out.write(&v)?;
                 return Ok(size - count);
             }
             v.push(byte[0]);
@@ -291,11 +131,11 @@ impl Decoder
     pub fn unpack(&mut self, target: &Path) -> io::Result<()>
     {
         let mut strings = self.load_string_section()?;
-        let secs = self.find_all_sections_of_type(DATA_SECTION_TYPE);
+        let secs = self.decoder.find_all_sections_of_type(DATA_SECTION_TYPE);
         let mut truncated: Option<(u64, File)> = None;
         for v in secs
         {
-            let mut section = self.open_section(&v)?;
+            let mut section = self.decoder.open_section(&v)?;
             if let Some((remaining, mut file)) = std::mem::replace(&mut truncated, None)
             {
                 let res = self.continue_file(&mut section, &mut file, remaining)?;
@@ -305,25 +145,22 @@ impl Decoder
                     continue;
                 }
             }
-            let mut fcountbuf: [u8; 4] = [0; 4];
-            section.read(&mut fcountbuf)?;
-            let mut count = LittleEndian::read_u32(&fcountbuf);
-            while count > 0
+            let mut count: u32 = 0;
+            while count < v.size
             {
-                let mut sizebuf: [u8; 8] = [0; 8];
-                let mut namebuf: [u8; 4] = [0; 4];
-                section.read(&mut sizebuf)?;
-                section.read(&mut namebuf)?;
-                let path = get_string(LittleEndian::read_u32(&namebuf), &mut strings)?;
+                let mut header: [u8; 12] = [0; 12];
+                section.read(&mut header)?;
+                let path = get_string(LittleEndian::read_u32(&header[8..12]), &mut strings)?;
                 let mut dest = PathBuf::new();
                 dest.push(target);
                 dest.push(path);
-                truncated = self.extract_file(&mut section, &dest, LittleEndian::read_u64(&sizebuf))?;
+                let size = LittleEndian::read_u64(&header[0..8]);
+                truncated = self.extract_file(&mut section, &dest, size)?;
                 if truncated.is_some()
                 {
                     break;
                 }
-                count -= 1;
+                count += size as u32 + 12;
             }
         }
         return Ok(());
@@ -332,121 +169,90 @@ impl Decoder
 
 pub struct Encoder
 {
-    main_header: BPXPMainHeader,
-    sections: Vec<BPXSectionHeader>,
-    sections_data: Vec<Box<dyn Section>>,
-    file: File
+    encoder: bpx::Encoder
 }
 
 impl Encoder
 {
-    pub fn new(file: &Path) -> io::Result<Encoder>
+    fn write_file(&mut self, source: &mut dyn Read, data_id: usize) -> io::Result<bool>
     {
-        let fle = File::create(file)?;
-        return Ok(Encoder
-        {
-            main_header: BPXPMainHeader::new(),
-            sections: Vec::new(),
-            sections_data: Vec::new(),
-            file: fle
-        });
-    }
+        let data = self.encoder.get_section_by_index(data_id);
+        let mut buf: [u8; DATA_WRITE_BUFFER_SIZE] = [0; DATA_WRITE_BUFFER_SIZE];
+        let mut res = source.read(&mut buf)?;
 
-    //Adds a new section; returns a reference to the new section for use in edit_section
-    pub fn add_section(&mut self, btype: u8, size: u32 /* use 0 for automatic size */) -> io::Result<usize>
-    {
-        self.main_header.section_num += 1;
-        let header = BPXSectionHeader::new(size, btype);
-        let section = create_section(&header)?;
-        self.sections.push(header);
-        let r = self.sections.len() - 1;
-        self.sections_data.push(section);
-        return Ok(r);
-    }
-
-    pub fn edit_section<T>(&mut self, reference: usize, callback: fn (section: &mut Box<dyn Section>) -> io::Result<T>) -> io::Result<T>
-    {
-        let section = &mut self.sections_data[reference];
-        let res = callback(section)?;
-        if section.size() > u32::MAX as usize
+        while res > 0
         {
-            panic!("BPX cannot support individual sections with size exceeding 4Gb (2 pow 32)");
+            data.write(&buf)?;
+            if data.size() >= MAX_DATA_SECTION_SIZE //Split sections (this is to avoid reaching the 4Gb max)
+            {
+                return Ok(false);
+            }
+            res = source.read(&mut buf)?;
         }
-        return Ok(res);
+        return Ok(true);
     }
 
-    /*fn pack_file(&mut self, data_section: usize, source: &Path) -> io::Result<()>
+    fn pack_file(&mut self, source: &Path, name: String, data_id1: usize, strings_id: usize) -> io::Result<usize>
     {
+        let mut data_id = data_id1;
+        let strings = self.encoder.get_section_by_index(strings_id);
+        let size = metadata(source)?.len();
+        let mut fle = File::open(source)?;
+        let mut buf: [u8; 12] = [0; 12];
+
+        LittleEndian::write_u64(&mut buf[0..8], size);
+        LittleEndian::write_u32(&mut buf[8..12], write_string(&name, strings)?);
+        {
+            let data = self.encoder.get_section_by_index(data_id);
+            data.write(&buf)?;
+        }
+        while !self.write_file(&mut fle, data_id)?
+        {
+            data_id = self.encoder.add_section(DATA_SECTION_TYPE, 0)?;
+        }
+        return Ok(data_id);
+    }
+
+    fn pack_dir(&mut self, source: &Path, name: String, data_id1: usize, strings_id: usize) -> io::Result<()>
+    {
+        let mut data_id = data_id1;
+        let entries = read_dir(source)?;
+    
+        for rentry in entries
+        {
+            let entry = rentry?;
+            let mut s = name.clone();
+            s.push('/');
+            s.push_str(&get_name_from_dir_entry(&entry));
+            if entry.file_type()?.is_dir()
+            {
+                self.pack_dir(&entry.path(), s, data_id, strings_id)?
+            }
+            else
+            {
+                data_id = self.pack_file(&entry.path(), s, data_id, strings_id)?;
+            }
+        }
         return Ok(());
     }
-
-    fn pack_dir(&mut self, data_section: usize, source: &Path) -> io::Result<()>
-    {
-        return Ok(());
-    }
-
+    
     pub fn pack(&mut self, source: &Path) -> io::Result<()>
     {
-        if self.sections.len() == 0
+        let strings = match self.encoder.find_section_by_type(bpx::STRING_SECTION_TYPE)
         {
-            self.string_section = self.add_section(STRING_SECTION_TYPE, 0)?;
-        }
+            Some(v) => v,
+            None => self.encoder.add_section(bpx::STRING_SECTION_TYPE, 0)?
+        };
         let md = metadata(source)?;
-        let data_section = self.add_section(DATA_SECTION_TYPE, 0)?;
+        let data_section = self.encoder.add_section(DATA_SECTION_TYPE, 0)?;
         if md.is_file()
         {
-            return self.pack_file(data_section, source);
+            self.pack_file(source, get_name_from_path(source)?, data_section, strings)?;
+            return Ok(());
         }
         else
         {
-            return self.pack_dir(data_section, source);
+            return self.pack_dir(source, get_name_from_path(source)?, data_section, strings);
         }
-    }*/
-
-    fn write_compress_sections(&mut self) -> io::Result<(File, u32, usize)>
-    {
-        let mut all_sections_size: usize = 0;
-        let mut chksum_sht: u32 = 0;
-        let mut ptr: u64 = SIZE_MAIN_HEADER as u64 + (self.sections.len() as u64 * SIZE_SECTION_HEADER as u64);
-        let mut f = tempfile::tempfile()?;
-        for i in 0..self.sections.len()
-        {
-            let (csize, chksum, flags) = write_section(&mut self.sections_data[i], &mut f)?;
-            self.sections[i].csize = csize as u32;
-            self.sections[i].chksum = chksum;
-            self.sections[i].flags = flags;
-            self.sections[i].pointer = ptr;
-            ptr += csize as u64;
-            chksum_sht += self.sections[i].get_checksum();
-            all_sections_size += csize;
-        }
-        return Ok((f, chksum_sht, all_sections_size));
-    }
-
-    fn write_data_file(&mut self, fle: &mut File, all_sections_size: usize) -> io::Result<()>
-    {
-        let mut idata: [u8; 8192] = [0; 8192];
-        let mut count: usize = 0;
-        while count < all_sections_size
-        {
-            let res = fle.read(&mut idata)?;
-            self.file.write(&idata[0..res])?;
-            count += res;
-        }
-        return Ok(());
-    }
-
-    pub fn save(&mut self) -> io::Result<()>
-    {
-        let (mut main_data, chksum_sht, all_sections_size) = self.write_compress_sections()?;
-        self.main_header.file_size = all_sections_size as u64 + (self.sections.len() * SIZE_SECTION_HEADER) as u64 + SIZE_MAIN_HEADER as u64;
-        self.main_header.chksum = chksum_sht + self.main_header.get_checksum();
-        self.main_header.write(&mut self.file)?;
-        for v in &self.sections
-        {
-            v.write(&mut self.file)?;
-        }
-        self.write_data_file(&mut main_data, all_sections_size)?;
-        return Ok(());
     }
 }

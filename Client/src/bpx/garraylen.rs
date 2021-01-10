@@ -51,6 +51,21 @@ impl GenericArrayLen for T3
     }
 }
 
+pub struct T16
+{
+}
+
+impl GenericArrayLen for T16
+{
+    type TArray = [u8; 16];
+    const SIZE: usize = 16;
+
+    fn from_array(buf: &[u8]) -> Self::TArray
+    {
+        return buf.try_into().unwrap();
+    }
+}
+
 pub fn extract_slice<TArray: GenericArrayLen>(large_buf: &[u8], offset: usize) -> TArray::TArray
 {
     let buf = &large_buf[offset..TArray::SIZE];

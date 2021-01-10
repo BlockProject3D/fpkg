@@ -33,6 +33,8 @@ use std::io::Error;
 use std::io::ErrorKind;
 use super::section::Section;
 use std::boxed::Box;
+use std::path::Path;
+use std::fs::DirEntry;
 
 pub fn get_string(ptr: u32, string_section: &mut Box<dyn Section>) -> Result<String>
 {
@@ -48,7 +50,38 @@ pub fn get_string(ptr: u32, string_section: &mut Box<dyn Section>) -> Result<Str
     }
     match String::from_utf8(curs)
     {
-        Err(e) => return Err(Error::new(ErrorKind::InvalidInput, format!("[BPX] error loading utf8 string: {}", e))),
+        Err(e) => return Err(Error::new(ErrorKind::InvalidData, format!("[BPX] error loading utf8 string: {}", e))),
         Ok(v) => return Ok(v)
+    }
+}
+
+pub fn write_string(s: &str, string_section: &mut Box<dyn Section>) -> Result<u32>
+{
+    let ptr = string_section.size() as u32;
+    string_section.write(s.as_bytes())?;
+    return Ok(ptr);
+}
+
+pub fn get_name_from_path(path: &Path) -> Result<String>
+{
+    match path.file_name()
+    {
+        Some(v) => match v.to_str()
+        {
+            Some(v) => return Ok(String::from(v)),
+            // Panic here as a non Unicode system in all cases could just throw a bunch of broken unicode strings in a BPXP
+            // The reason BPXP cannot support non-unicode strings in paths is simply because this would be incompatible with unicode systems
+            None => panic!("Non unicode paths operating systems cannot run BPXP")
+        },
+        None => return Err(Error::new(ErrorKind::InvalidInput, "[BPX] incorrect path format")),
+    }
+}
+
+pub fn get_name_from_dir_entry(entry: &DirEntry) -> String //Rust wants reallocation and slow code then give it fuck at the end
+{
+    match entry.file_name().to_str()
+    {
+        Some(v) => return String::from(v),
+        None => panic!("Non unicode paths operating systems cannot run BPXP")
     }
 }
