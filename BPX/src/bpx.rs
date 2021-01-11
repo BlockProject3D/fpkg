@@ -49,7 +49,7 @@ pub struct BPXPMainHeader
     signature: [u8; 3], //+0
     pub btype: u8, //+3
     chksum: u32, //+4
-    file_size: u64, //+8
+    pub file_size: u64, //+8
     pub section_num: u32, //+16
     pub version: u32, //+20
     pub type_ext: [u8; 16] //+24
