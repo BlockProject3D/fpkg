@@ -208,7 +208,7 @@ impl Decoder
         return open_section(&mut self.file, &section);
     }
 
-    fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
+    pub fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
     {
         if let Some(section) = self.find_section_by_type(STRING_SECTION_TYPE)
         {

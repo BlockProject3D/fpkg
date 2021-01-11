@@ -68,15 +68,6 @@ impl Decoder
         })
     }
 
-    fn load_string_section(&mut self) -> io::Result<Box<dyn Section>>
-    {
-        if let Some(section) = self.decoder.find_section_by_type(bpx::STRING_SECTION_TYPE)
-        {
-            return self.decoder.open_section(&section);
-        }
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] could not locate string section"));
-    }
-
     fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u64) -> io::Result<Option<(u64, File)>>
     {
         if let Some(v) = dest.parent()
@@ -130,7 +121,7 @@ impl Decoder
 
     pub fn unpack(&mut self, target: &Path) -> io::Result<()>
     {
-        let mut strings = self.load_string_section()?;
+        let mut strings = self.decoder.load_string_section()?;
         let secs = self.decoder.find_all_sections_of_type(DATA_SECTION_TYPE);
         let mut truncated: Option<(u64, File)> = None;
         for v in secs
