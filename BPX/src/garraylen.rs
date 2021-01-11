@@ -68,6 +68,6 @@ impl GenericArrayLen for T16
 
 pub fn extract_slice<TArray: GenericArrayLen>(large_buf: &[u8], offset: usize) -> TArray::TArray
 {
-    let buf = &large_buf[offset..TArray::SIZE];
+    let buf = &large_buf[offset..offset + TArray::SIZE];
     return TArray::from_array(buf);
 }
