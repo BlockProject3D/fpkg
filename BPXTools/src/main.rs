@@ -1,12 +1,21 @@
 use clap::clap_app;
 use clap::AppSettings;
+use std::path::Path;
+
+mod bpxinfo;
+
+fn error(err: &std::io::Error)
+{
+    eprintln!("{}", err);
+    std::process::exit(1);
+}
 
 fn main() {
     let matches = clap_app!(bpxd =>
         (version: "1.0")
         (author: "BlockProject3D <https://github.com/BlockProject3D>")
         (about: "BPX Debugging tools")
-        (@arg file: -f --file +required +takes_value "Path to the BPX file to debug")
+        (@arg file: -f --file +required +takes_value "Path to the BPX file to debug/create")
         (@subcommand info =>
             (about: "Prints general information about a given BPX file ")
             (@arg sht: --sht "Prints the section header table (SHT)")
@@ -20,6 +29,14 @@ fn main() {
             (about: "Unpacks a given BPX type P (Package) file")
         )
     ).setting(AppSettings::SubcommandRequiredElseHelp).get_matches();
+    let file = matches.value_of("file").unwrap();
 
-    println!("BPX Debug tools");
+    if let Some(matches) = matches.subcommand_matches("info")
+    {
+        match bpxinfo::run(Path::new(file), matches)
+        {
+            Ok(()) => std::process::exit(0),
+            Err(e) => error(&e)
+        }
+    }
 }

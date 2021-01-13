@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bpxd"
+name = "bpxdbg"
 version = "0.1.0"
 dependencies = [
  "bpx",
