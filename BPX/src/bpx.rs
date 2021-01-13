@@ -38,8 +38,8 @@ use byteorder::ByteOrder;
 use super::garraylen::*;
 use super::section::*;
 
-const FLAG_COMPRESS_ZLIB: u8 = 0x1;
-const FLAG_CHECK_ADDLER32: u8 = 0x4;
+pub const FLAG_COMPRESS_ZLIB: u8 = 0x1;
+pub const FLAG_CHECK_ADDLER32: u8 = 0x4;
 
 pub const STRING_SECTION_TYPE: u8 = 0xFF;
 
@@ -201,6 +201,11 @@ impl Decoder
             }
         }        
         return v;
+    }
+
+    pub fn get_section_by_index(&self, index: usize) -> BPXSectionHeader
+    {
+        return self.sections[index];
     }
 
     pub fn open_section(&mut self, section: &BPXSectionHeader) -> io::Result<Box<dyn Section>>
