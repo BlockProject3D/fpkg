@@ -3,6 +3,7 @@ use clap::AppSettings;
 use std::path::Path;
 
 mod bpxinfo;
+mod pack;
 
 fn error(err: &std::io::Error)
 {
@@ -34,6 +35,14 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("info")
     {
         match bpxinfo::run(Path::new(file), matches)
+        {
+            Ok(()) => std::process::exit(0),
+            Err(e) => error(&e)
+        }
+    }
+    if let Some(matches) = matches.subcommand_matches("pack")
+    {
+        match pack::run(Path::new(file), matches)
         {
             Ok(()) => std::process::exit(0),
             Err(e) => error(&e)
