@@ -254,4 +254,9 @@ impl Encoder
             return self.pack_dir(source, get_name_from_path(source)?, data_section, strings);
         }
     }
+
+    pub fn save(&mut self) -> io::Result<()>
+    {
+        return self.encoder.save();
+    }
 }

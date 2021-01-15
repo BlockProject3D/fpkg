@@ -30,6 +30,7 @@ use std::fs::File;
 use std::path::Path;
 use std::vec::Vec;
 use std::io;
+use std::io::Seek;
 use std::io::Write;
 use std::io::Read;
 use std::boxed::Box;
@@ -295,14 +296,17 @@ impl Encoder
         let mut chksum_sht: u32 = 0;
         let mut ptr: u64 = SIZE_MAIN_HEADER as u64 + (self.sections.len() as u64 * SIZE_SECTION_HEADER as u64);
         let mut f = tempfile::tempfile()?;
+
         for i in 0..self.sections.len()
         {
             if self.sections_data[i].size() > u32::MAX as usize
             {
                 panic!("BPX cannot support individual sections with size exceeding 4Gb (2 pow 32)");
             }
+            self.sections_data[i].seek(io::SeekFrom::Start(0))?;
             let (csize, chksum, flags) = write_section(&mut self.sections_data[i], &mut f)?;
             self.sections[i].csize = csize as u32;
+            self.sections[i].size = self.sections_data[i].size() as u32;
             self.sections[i].chksum = chksum;
             self.sections[i].flags = flags;
             self.sections[i].pointer = ptr;
@@ -317,6 +321,8 @@ impl Encoder
     {
         let mut idata: [u8; 8192] = [0; 8192];
         let mut count: usize = 0;
+
+        fle.seek(io::SeekFrom::Start(0))?;
         while count < all_sections_size
         {
             let res = fle.read(&mut idata)?;
@@ -329,6 +335,7 @@ impl Encoder
     pub fn save(&mut self) -> io::Result<()>
     {
         let (mut main_data, chksum_sht, all_sections_size) = self.write_compress_sections()?;
+
         self.main_header.file_size = all_sections_size as u64 + (self.sections.len() * SIZE_SECTION_HEADER) as u64 + SIZE_MAIN_HEADER as u64;
         self.main_header.chksum = chksum_sht + self.main_header.get_checksum();
         self.main_header.write(&mut self.file)?;
