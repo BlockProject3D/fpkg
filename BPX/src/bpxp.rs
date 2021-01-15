@@ -163,6 +163,16 @@ pub struct Encoder
 
 impl Encoder
 {
+    pub fn new(file: &Path) -> io::Result<Encoder>
+    {
+        let encoder = bpx::Encoder::new(file)?;
+
+        return Ok(Encoder
+        {
+            encoder: encoder
+        });
+    }
+
     fn write_file(&mut self, source: &mut dyn Read, data_id: usize) -> io::Result<bool>
     {
         let data = self.encoder.get_section_by_index(data_id);
