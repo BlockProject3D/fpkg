@@ -157,11 +157,12 @@ impl io::Read for InMemorySection
         {
             if self.cursor + i >= self.data.len()
             {
+                self.cursor += i;
                 return Ok(i);
             }
             data[i] = self.data[self.cursor + i];
-            self.cursor += 1;
         }
+        self.cursor += data.len();
         return Ok(data.len())
     }
 }

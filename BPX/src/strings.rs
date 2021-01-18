@@ -46,7 +46,11 @@ pub fn get_string(ptr: u32, string_section: &mut Box<dyn Section>) -> Result<Str
     while chr[0] != 0x0
     {
         curs.push(chr[0]);
-        string_section.read(&mut chr)?;
+        let res = string_section.read(&mut chr)?;
+        if res != 1
+        {
+            return Err(Error::new(ErrorKind::InvalidData, "[BPX] Reached EOS before null byte, are you sure this BPX is not corrupted/truncated?"));
+        }
     }
     match String::from_utf8(curs)
     {
@@ -59,6 +63,7 @@ pub fn write_string(s: &str, string_section: &mut Box<dyn Section>) -> Result<u3
 {
     let ptr = string_section.size() as u32;
     string_section.write(s.as_bytes())?;
+    string_section.write(&[0x0])?;
     return Ok(ptr);
 }
 
