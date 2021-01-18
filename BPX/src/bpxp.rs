@@ -140,6 +140,8 @@ impl Decoder
                 let mut header: [u8; 12] = [0; 12];
                 section.read(&mut header)?;
                 let path = get_string(LittleEndian::read_u32(&header[8..12]), &mut strings)?;
+                assert_ne!(path, "");
+                println!("Reading {}...", path);
                 let mut dest = PathBuf::new();
                 dest.push(target);
                 dest.push(path);
