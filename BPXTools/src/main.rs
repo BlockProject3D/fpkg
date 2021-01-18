@@ -4,6 +4,7 @@ use std::path::Path;
 
 mod bpxinfo;
 mod pack;
+mod unpack;
 
 fn error(err: &std::io::Error)
 {
@@ -43,6 +44,14 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("pack")
     {
         match pack::run(Path::new(file), matches)
+        {
+            Ok(()) => std::process::exit(0),
+            Err(e) => error(&e)
+        }
+    }
+    if matches.subcommand_matches("unpack").is_some()
+    {
+        match unpack::run(Path::new(file))
         {
             Ok(()) => std::process::exit(0),
             Err(e) => error(&e)
