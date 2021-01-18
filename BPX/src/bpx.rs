@@ -310,6 +310,7 @@ impl Encoder
             self.sections[i].chksum = chksum;
             self.sections[i].flags = flags;
             self.sections[i].pointer = ptr;
+            println!("Writing section #{}: Size = {}, Size after compression = {}", i, self.sections[i].size, self.sections[i].csize);
             ptr += csize as u64;
             chksum_sht += self.sections[i].get_checksum();
             all_sections_size += csize;

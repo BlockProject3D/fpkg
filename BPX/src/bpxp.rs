@@ -140,7 +140,10 @@ impl Decoder
                 let mut header: [u8; 12] = [0; 12];
                 section.read(&mut header)?;
                 let path = get_string(LittleEndian::read_u32(&header[8..12]), &mut strings)?;
-                assert_ne!(path, "");
+                if path == ""
+                {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] Empty path string detected, aborting to prevent damage on host files"));
+                }
                 println!("Reading {}...", path);
                 let mut dest = PathBuf::new();
                 dest.push(target);
@@ -183,7 +186,7 @@ impl Encoder
 
         while res > 0
         {
-            data.write(&buf)?;
+            data.write(&buf[0..res])?;
             if data.size() >= MAX_DATA_SECTION_SIZE //Split sections (this is to avoid reaching the 4Gb max)
             {
                 return Ok(false);
