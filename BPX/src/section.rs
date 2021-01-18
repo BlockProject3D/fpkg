@@ -160,6 +160,7 @@ impl io::Read for InMemorySection
                 return Ok(i);
             }
             data[i] = self.data[self.cursor + i];
+            self.cursor += 1;
         }
         return Ok(data.len())
     }
