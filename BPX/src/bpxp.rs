@@ -91,6 +91,7 @@ impl Decoder
             }
             count += 1;
         }
+        fle.write(&v)?;
         return Ok(None);
     }
 
