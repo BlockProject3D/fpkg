@@ -213,7 +213,7 @@ impl io::Seek for InMemorySection
     {
         match state
         {
-            io::SeekFrom::Start(pos) => self.cursor += pos as usize,
+            io::SeekFrom::Start(pos) => self.cursor = pos as usize,
             io::SeekFrom::End(pos) => self.cursor = slow_but_correct_add(self.data.len(), pos as isize),
             io::SeekFrom::Current(pos) => self.cursor = slow_but_correct_add(self.cursor, pos as isize)
         }
@@ -475,12 +475,14 @@ fn load_section_as_file(bpx: &mut File, header: &BPXSectionHeader) -> io::Result
         let mut idata: [u8; READ_BLOCK_SIZE] = [0; READ_BLOCK_SIZE];
         let mut count: usize = 0;
         let mut chksum: u32 = 0;
+        let mut remaining: usize = header.size as usize;
         while count < header.size as usize
         {
-            let res = bpx.read(&mut idata)?;
+            let res = bpx.read(&mut idata[0..std::cmp::min(READ_BLOCK_SIZE, remaining)])?;
             section.write(&idata[0..res])?;
             chksum += read_chksum(&idata[0..res]);
             count += res;
+            remaining -= res;
         }
         if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
         {
