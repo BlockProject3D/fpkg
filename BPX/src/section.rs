@@ -346,26 +346,6 @@ const FLAG_COMPRESS_XZ: u8 = 0x2;
 const FLAG_CHECK_WEAK: u8 = 0x8;
 const READ_BLOCK_SIZE: usize = 65536;
 
-fn sync_finish(encoder: &mut Stream, output: &mut dyn Write) -> io::Result<usize>
-{
-    let dummy: [u8; 0] = [0; 0];
-    let mut status = xz::stream::Status::MemNeeded;
-    let mut csize: usize = 0;
-
-    while status != xz::stream::Status::StreamEnd
-    {
-        let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE);
-        match encoder.process_vec(&dummy, &mut odata, xz::stream::Action::Finish)
-        {
-            Ok(s) => status = s,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] deflate error: {}", e)))
-        }
-        output.write(&odata)?;
-        csize += odata.len();
-    }
-    return Ok(csize)
-}
-
 fn block_based_deflate(input: &mut dyn Read, output: &mut dyn Write, inflated_size: usize) -> io::Result<(usize, u32)>
 {
     let mut count: usize = 0;
@@ -379,60 +359,66 @@ fn block_based_deflate(input: &mut dyn Read, output: &mut dyn Write, inflated_si
 
     while count < inflated_size {
         let mut idata: [u8; READ_BLOCK_SIZE] = [0; READ_BLOCK_SIZE];
-        let mut status = xz::stream::Status::MemNeeded;
-        let res = input.read(&mut idata)?;
+        let mut status = xz::stream::Status::Ok;
+        let mut expected = xz::stream::Status::MemNeeded;
+        let mut action = xz::stream::Action::Run;
+        let mut res = input.read(&mut idata)?;
+        count += res;
         chksum += read_chksum(&idata);
-        while status != xz::stream::Status::Ok
+        if count >= inflated_size
         {
-            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE);
-            match encoder.process_vec(&idata[0..res], &mut odata, xz::stream::Action::Run)
+            action = xz::stream::Action::Finish;
+            expected = xz::stream::Status::StreamEnd;
+        }
+        while status != expected
+        {
+            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE * 2);
+            match encoder.process_vec(&idata[0..res], &mut odata, action)
             {
                 Ok(s) => status = s,
                 Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] deflate error: {}", e)))
             }
+            res = 0;
             output.write(&odata)?;
             csize += odata.len();
         }
-        count += res;
     }
-    csize += sync_finish(&mut encoder, output)?;
     return Ok((csize, chksum));
 }
 
-fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, inflated_size: usize, deflated_size: usize) -> io::Result<u32>
+fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, deflated_size: usize) -> io::Result<u32>
 {
-    let mut count: usize = 0;
-    let mut decoder = match Stream::new_stream_decoder(inflated_size as u64, 0)
+    let mut decoder = match Stream::new_stream_decoder(u32::MAX as u64, xz::stream::CONCATENATED)
     {
         Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] inflate error: {}", e))),
         Ok(v) => v
     };
     let mut action = xz::stream::Action::Run;
+    let mut expected = xz::stream::Status::MemNeeded;
     let mut chksum: u32 = 0;
     let mut remaining = deflated_size;
 
-    while count < inflated_size {
+    while remaining > 0 {
         let mut idata: [u8; READ_BLOCK_SIZE] = [0; READ_BLOCK_SIZE];
         let mut status = xz::stream::Status::Ok;
-        let res = input.read(&mut idata[0..std::cmp::min(READ_BLOCK_SIZE, remaining)])?;
+        let mut res = input.read(&mut idata[0..std::cmp::min(READ_BLOCK_SIZE, remaining)])?;
         remaining -= res;
-        println!("{:?}", &idata[0..4]);
-        if res == 0
+        if remaining == 0
         {
             action = xz::stream::Action::Finish;
+            expected = xz::stream::Status::StreamEnd;
         }
-        while status != xz::stream::Status::MemNeeded
+        while status != expected
         {
-            println!("{}", res);
-            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE);
+            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE * 2);
             match decoder.process_vec(&idata[0..res], &mut odata, action)
             {
                 Ok(s) => status = s,
                 Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] inflate error: {}", e)))
             }
+            res = 0;
             chksum += read_chksum(&odata);
             output.write(&odata)?;
-            count += odata.len();
         }
     }
     output.flush()?;
@@ -446,10 +432,11 @@ fn load_section_in_memory(bpx: &mut File, header: &BPXSectionHeader) -> io::Resu
     {
         let mut section = InMemorySection::new(vec![0; header.size as usize]);
         section.seek(io::SeekFrom::Start(0))?;
-        let chksum = block_based_inflate(bpx, &mut section, header.size as usize, header.csize as usize)?;
+        let chksum = block_based_inflate(bpx, &mut section, header.csize as usize)?;
+        println!("Unpacked section size: {}", section.size());
         if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
         section.seek(io::SeekFrom::Start(0))?;
         return Ok(section);
@@ -461,7 +448,7 @@ fn load_section_in_memory(bpx: &mut File, header: &BPXSectionHeader) -> io::Resu
         let chksum = read_chksum(&data);
         if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
         let mut section = InMemorySection::new(data);
         section.seek(io::SeekFrom::Start(0))?;
@@ -476,10 +463,11 @@ fn load_section_as_file(bpx: &mut File, header: &BPXSectionHeader) -> io::Result
     bpx.seek(io::SeekFrom::Start(header.pointer))?;
     if header.flags & FLAG_COMPRESS_XZ == FLAG_COMPRESS_XZ
     {
-        let chksum = block_based_inflate(bpx, &mut section, header.size as usize, header.csize as usize)?;
+        let chksum = block_based_inflate(bpx, &mut section, header.csize as usize)?;
+        println!("Unpacked section size: {}", section.size());
         if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
     }
     else
@@ -496,7 +484,7 @@ fn load_section_as_file(bpx: &mut File, header: &BPXSectionHeader) -> io::Result
         }
         if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] checksum validation failed"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
         section.flush()?;
     }

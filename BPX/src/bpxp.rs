@@ -205,6 +205,7 @@ impl Encoder
         let mut fle = File::open(source)?;
         let mut buf: [u8; 12] = [0; 12];
 
+        println!("Writing file {} with {} byte(s)", name, size);
         LittleEndian::write_u64(&mut buf[0..8], size);
         LittleEndian::write_u32(&mut buf[8..12], write_string(&name, strings)?);
         {
