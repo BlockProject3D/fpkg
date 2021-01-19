@@ -40,7 +40,7 @@ use super::garraylen::*;
 use super::section::*;
 
 pub const FLAG_COMPRESS_ZLIB: u8 = 0x1;
-pub const FLAG_CHECK_ADDLER32: u8 = 0x4;
+pub const FLAG_CHECK_CRC32: u8 = 0x4;
 
 pub const STRING_SECTION_TYPE: u8 = 0xFF;
 
@@ -165,7 +165,7 @@ impl Decoder
             {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] zlib compression is not supported by FPKG"));
             }
-            if header.flags & FLAG_CHECK_ADDLER32 == FLAG_CHECK_ADDLER32
+            if header.flags & FLAG_CHECK_CRC32 == FLAG_CHECK_CRC32
             {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] addler32 checksum is not supported by FPKG"));
             }
