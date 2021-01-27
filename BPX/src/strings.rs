@@ -49,7 +49,7 @@ pub fn get_string(ptr: u32, string_section: &mut Box<dyn Section>) -> Result<Str
         let res = string_section.read(&mut chr)?;
         if res != 1
         {
-            return Err(Error::new(ErrorKind::InvalidData, "[BPX] Reached EOS before null byte, are you sure this BPX is not corrupted/truncated?"));
+            return Err(Error::new(ErrorKind::UnexpectedEof, "[BPX] Reached EOS before null byte, are you sure this BPX is not corrupted/truncated?"));
         }
     }
     match String::from_utf8(curs)
