@@ -39,6 +39,8 @@ use super::strings::*;
 use std::fs::metadata;
 use std::fs::read_dir;
 use super::bpx;
+use super::sd::Object;
+use super::sd::load_structured_data;
 
 const DATA_SECTION_TYPE: u8 = 0x1;
 
@@ -46,9 +48,55 @@ const DATA_WRITE_BUFFER_SIZE: usize = 8192;
 const MIN_DATA_REMAINING_SIZE: usize = DATA_WRITE_BUFFER_SIZE;
 const MAX_DATA_SECTION_SIZE: usize = 200000000 - MIN_DATA_REMAINING_SIZE; //200MB
 
+pub enum Architecture
+{
+    X86_64,
+    Aarch64,
+    X86,
+    Armv7hl,
+    Any
+}
+
+pub enum Platform
+{
+    Linux,
+    Mac,
+    Windows,
+    Android,
+    Any
+}
+
 pub struct Decoder
 {
+    pub architecture: Architecture,
+    pub platform: Platform,
     decoder: bpx::Decoder
+}
+
+fn get_arch_platform_from_code(acode: u8, pcode: u8) -> io::Result<(Architecture, Platform)>
+{
+    let arch;
+    let platform;
+
+    match acode
+    {
+        0x0 => arch = Architecture::X86_64,
+        0x1 => arch = Architecture::Aarch64,
+        0x2 => arch = Architecture::X86,
+        0x3 => arch = Architecture::Armv7hl,
+        0x4 => arch = Architecture::Any,
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] Architecture code does not exist"))
+    }
+    match pcode
+    {
+        0x0 => platform = Platform::Linux,
+        0x1 => platform = Platform::Mac,
+        0x2 => platform = Platform::Windows,
+        0x3 => platform = Platform::Android,
+        0x4 => platform = Platform::Any,
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] Platform code does not exist"))
+    }
+    return Ok((arch, platform));
 }
 
 impl Decoder
@@ -58,12 +106,29 @@ impl Decoder
         let decoder = bpx::Decoder::new(file)?;
         if decoder.main_header.btype != 'P' as u8
         {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] Unknown type of BPX: {}", decoder.main_header.btype as char)));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] Unknown type of BPX: {}", decoder.main_header.btype as char)));
+        }
+        let (a, p) = get_arch_platform_from_code(decoder.main_header.type_ext[0], decoder.main_header.type_ext[1])?;
+        if decoder.main_header.type_ext[2] != 0x50 || decoder.main_header.type_ext[3] != 0x4B
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] Unsupported BPXP variant {}{}", decoder.main_header.type_ext[2] as char, decoder.main_header.type_ext[3] as char)));
         }
         return Ok(Decoder
         {
+            architecture: a,
+            platform: p,
             decoder: decoder
         })
+    }
+
+    pub fn open_metadata(&mut self) -> io::Result<Object>
+    {
+        if let Some(section) = self.decoder.find_section_by_type(254)
+        {
+            let mut data = self.decoder.open_section(&section)?;
+            return load_structured_data(&mut data);
+        }
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] could not locate metadata section"));
     }
 
     fn extract_file(&self, source: &mut dyn Read, dest: &PathBuf, size: u64) -> io::Result<Option<(u64, File)>>
@@ -164,6 +229,8 @@ impl Decoder
 
 pub struct Encoder
 {
+    pub architecture: Architecture,
+    pub platform: Platform,
     encoder: bpx::Encoder
 }
 
@@ -175,6 +242,8 @@ impl Encoder
 
         return Ok(Encoder
         {
+            architecture: Architecture::Any,
+            platform: Platform::Any,
             encoder: encoder
         });
     }
@@ -264,6 +333,24 @@ impl Encoder
 
     pub fn save(&mut self) -> io::Result<()>
     {
+        match self.architecture
+        {
+            Architecture::X86_64 => self.encoder.main_header.type_ext[0] = 0x0,
+            Architecture::Aarch64 => self.encoder.main_header.type_ext[0] = 0x1,
+            Architecture::X86 => self.encoder.main_header.type_ext[0] = 0x2,
+            Architecture::Armv7hl => self.encoder.main_header.type_ext[0] = 0x3,
+            Architecture::Any => self.encoder.main_header.type_ext[0] = 0x4,
+        }
+        match self.platform
+        {
+            Platform::Linux => self.encoder.main_header.type_ext[1] = 0x0,
+            Platform::Mac => self.encoder.main_header.type_ext[1] = 0x1,
+            Platform::Windows => self.encoder.main_header.type_ext[1] = 0x2,
+            Platform::Android => self.encoder.main_header.type_ext[1] = 0x3,
+            Platform::Any => self.encoder.main_header.type_ext[1] = 0x4,
+        }
+        self.encoder.main_header.type_ext[2] = 0x50;
+        self.encoder.main_header.type_ext[3] = 0x4B;
         return self.encoder.save();
     }
 }

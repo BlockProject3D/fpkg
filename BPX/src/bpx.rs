@@ -241,7 +241,7 @@ impl Decoder
 
 pub struct Encoder
 {
-    main_header: BPXPMainHeader,
+    pub main_header: BPXPMainHeader,
     sections: Vec<BPXSectionHeader>,
     sections_data: Vec<Box<dyn Section>>,
     file: File
