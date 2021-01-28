@@ -10,3 +10,4 @@ edition = "2018"
 tempfile = "3.0.7"
 byteorder = "1"
 xz = "0.1.0"
+phf = { version = "0.7.24", features = ["macros"] }
