@@ -29,6 +29,7 @@
 // The BPX Structured Data format (BPXSD)
 
 use std::collections::HashMap;
+use std::collections::hash_map::Keys;
 use std::vec::Vec;
 use std::string::String;
 use std::ops::Index;
@@ -38,7 +39,6 @@ use std::io::Write;
 use std::io::Result;
 use std::io::Error;
 use std::io::ErrorKind;
-use phf::phf_map;
 use byteorder::ByteOrder;
 use byteorder::LittleEndian;
 
@@ -167,6 +167,11 @@ impl Object
     pub fn prop_count(&self) -> usize
     {
         return self.props.len();
+    }
+
+    pub fn get_keys(&self) -> Keys<'_, u64, Value>
+    {
+        return self.props.keys();
     }
 }
 
@@ -355,7 +360,7 @@ fn parse_object(stream: &mut dyn Read) -> Result<Object>
         }
         let hash = LittleEndian::read_u64(&prop[0..8]);
         let type_code = prop[8];
-        match VALUE_PARSERS.get(&type_code)
+        match get_value_parser(type_code)
         {
             Some(func) => obj.raw_set(hash, func(stream)?),
             None => return Err(Error::new(ErrorKind::InvalidData, format!("[BPX] Got unexpected unknown type code ({}) from Structured Data Object", type_code)))
@@ -385,7 +390,7 @@ fn parse_array(stream: &mut dyn Read) -> Result<Array>
         {
             return Err(Error::new(ErrorKind::UnexpectedEof, "[BPX] Unexpected end of input while reading Structured Data Object"));
         }
-        match VALUE_PARSERS.get(&type_code[0])
+        match get_value_parser(type_code[0])
         {
             Some(func) => arr.add(func(stream)?),
             None => return Err(Error::new(ErrorKind::InvalidData, format!("[BPX] Got unexpected unknown type code ({}) from Structured Data Object", type_code[0])))
@@ -395,25 +400,179 @@ fn parse_array(stream: &mut dyn Read) -> Result<Array>
     return Ok(arr);
 }
 
-static VALUE_PARSERS: phf::Map<u8, fn (stream: &mut dyn Read) -> Result<Value>> = phf_map! {
-    0x0u8 => |_| { return Ok(Value::Null); }, //Mothershit PHF of my ass unable to read context!!!!
-    0x1u8 => read_bool,
-    0x2u8 => read_uint8,
-    0x3u8 => read_uint16,
-    0x4u8 => read_uint32,
-    0x5u8 => read_uint64,
-    0x6u8 => read_int8,
-    0x7u8 => read_int16,
-    0x8u8 => read_int32,
-    0x9u8 => read_int64,
-    0xAu8 => read_float,
-    0xBu8 => read_double,
-    0xCu8 => read_string,
-    0xDu8 => |stream| { return Ok(Value::Array(parse_array(stream)?)); },
-    0xEu8 => |stream| { return Ok(Value::Object(parse_object(stream)?)); }
-};
+fn get_value_parser(type_code: u8) -> Option<fn (stream: &mut dyn Read) -> Result<Value>>
+{
+    match type_code
+    {
+        0x0 => Some(|_| { return Ok(Value::Null); }),
+        0x1 => Some(read_bool),
+        0x2 => Some(read_uint8),
+        0x3 => Some(read_uint16),
+        0x4 => Some(read_uint32),
+        0x5 => Some(read_uint64),
+        0x6 => Some(read_int8),
+        0x7 => Some(read_int16),
+        0x8 => Some(read_int32),
+        0x9 => Some(read_int64),
+        0xA => Some(read_float),
+        0xB => Some(read_double),
+        0xC => Some(read_string),
+        0xD => Some(|stream| { return Ok(Value::Array(parse_array(stream)?)); }),
+        0xE => Some(|stream| { return Ok(Value::Object(parse_object(stream)?)); }),
+        _ => None
+    }
+}
+
+fn get_value_type_code(val: &Value) -> u8
+{
+    match val
+    {
+        Value::Null => 0x0,
+        Value::Bool(_) => 0x1,
+        Value::Uint8(_) => 0x2,
+        Value::Uint16(_) => 0x3,
+        Value::Uint32(_) => 0x4,
+        Value::Uint64(_) => 0x5,
+        Value::Int8(_) => 0x6,
+        Value::Int16(_) => 0x7,
+        Value::Int32(_) => 0x8,
+        Value::Int64(_) => 0x9,
+        Value::Float(_) => 0xA,
+        Value::Double(_) => 0xB,
+        Value::String(_) => 0xC,
+        Value::Array(_) => 0xD,
+        Value::Object(_) => 0xE
+    }
+}
+
+fn write_value(val: &Value) -> Result<Vec<u8>>
+{
+    let mut buf = Vec::new();
+
+    match val
+    {
+        Value::Null => (),
+        Value::Bool(b) =>
+        {
+            if *b
+            {
+                buf.push(1);
+            }
+            else
+            {
+                buf.push(0);
+            }
+        },
+        Value::Uint8(v) => buf.push(*v),
+        Value::Uint16(v) =>
+        {
+            let mut b: [u8; 2] = [0; 2];
+            LittleEndian::write_u16(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Uint32(v) =>
+        {
+            let mut b: [u8; 4] = [0; 4];
+            LittleEndian::write_u32(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Uint64(v) =>
+        {
+            let mut b: [u8; 8] = [0; 8];
+            LittleEndian::write_u64(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Int8(v) => buf.push(*v as u8),
+        Value::Int16(v) =>
+        {
+            let mut b: [u8; 2] = [0; 2];
+            LittleEndian::write_i16(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Int32(v) =>
+        {
+            let mut b: [u8; 4] = [0; 4];
+            LittleEndian::write_i32(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Int64(v) =>
+        {
+            let mut b: [u8; 8] = [0; 8];
+            LittleEndian::write_i64(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Float(v) =>
+        {
+            let mut b: [u8; 4] = [0; 4];
+            LittleEndian::write_f32(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::Double(v) =>
+        {
+            let mut b: [u8; 8] = [0; 8];
+            LittleEndian::write_f64(&mut b, *v);
+            buf.extend_from_slice(&b);
+        },
+        Value::String(s) =>
+        {
+            buf.extend_from_slice(s.as_bytes());
+            buf.push(0x0); //Add null byte terminator
+        },
+        Value::Array(arr) => buf.append(&mut write_array(arr)?),
+        Value::Object(obj) => buf.append(&mut write_object(obj)?)
+    }
+    return Ok(buf);
+}
+
+fn write_object(obj: &Object) -> Result<Vec<u8>>
+{
+    let mut v: Vec<u8> = Vec::new();
+    let count = obj.prop_count();
+
+    if count > 255
+    {
+        return Err(Error::new(ErrorKind::InvalidInput, format!("[BPX] Structured Data only supports up to 255 maximum values in either array or object, got {} values", count)));
+    }
+    v.push(count as u8);
+    for hash in obj.get_keys()
+    {
+        let val = &obj[*hash];
+        let mut head: [u8; 9] = [0; 9];
+        LittleEndian::write_u64(&mut head[0..8], *hash);
+        head[8] = get_value_type_code(val);
+        v.extend_from_slice(&head);
+        v.append(&mut write_value(val)?);
+    }
+    return Ok(v);
+}
+
+fn write_array(arr: &Array) -> Result<Vec<u8>>
+{
+    let mut v: Vec<u8> = Vec::new();
+    let count = arr.len();
+
+    if count > 255
+    {
+        return Err(Error::new(ErrorKind::InvalidInput, format!("[BPX] Structured Data only supports up to 255 maximum values in either array or object, got {} values", count)));
+    }
+    v.push(count as u8);
+    for i in 0..count
+    {
+        let val = &arr[i];
+        v.push(get_value_type_code(val));
+        v.append(&mut write_value(val)?);
+    }
+    return Ok(v);
+}
 
 pub fn load_structured_data(source: &mut dyn Read) -> Result<Object>
 {
     return parse_object(source);
+}
+
+pub fn write_structured_data(dest: &mut dyn Write, obj: &Object) -> Result<()>
+{
+    let bytes = write_object(obj)?;
+    dest.write(&bytes)?;
+    return Ok(());
 }
