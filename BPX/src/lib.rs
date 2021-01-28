@@ -31,5 +31,5 @@ pub mod bpx;
 pub mod bpxp;
 pub mod section;
 pub mod strings;
-pub mod structureddata;
+pub mod sd;
 pub mod utils;
