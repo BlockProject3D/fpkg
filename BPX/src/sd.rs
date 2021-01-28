@@ -576,3 +576,51 @@ pub fn write_structured_data(dest: &mut dyn Write, obj: &Object) -> Result<()>
     dest.write(&bytes)?;
     return Ok(());
 }
+
+pub struct DebugSymbols
+{
+    symbols: HashMap<u64, String>
+}
+
+impl DebugSymbols
+{
+    pub fn load(obj: &Object) -> Result<DebugSymbols>
+    {
+        let mut symbols = HashMap::new();
+
+        if let Some(val) = obj.get("__debug__")
+        {
+            match val
+            {
+                Value::Array(arr) =>
+                {
+                    for i in 0..arr.len()
+                    {
+                        match &arr[i]
+                        {
+                            Value::String(s) =>
+                            {
+                                symbols.insert(super::utils::hash(&s), s.clone());
+                            }
+                            _ => return Err(Error::new(ErrorKind::InvalidData, "[BPX] Wrong value type for debugging symbols"))
+                        }
+                    }
+                },
+                _ => return Err(Error::new(ErrorKind::InvalidData, "[BPX] Wrong value type for debugging symbols"))
+            }
+        }
+        return Ok(DebugSymbols
+        {
+            symbols: symbols
+        });
+    }
+
+    pub fn lookup(&self, hash: u64) -> String
+    {
+        match self.symbols.get(&hash)
+        {
+            Some(s) => return s.clone(), //We have a debug symbol for the current property
+            None => format!("{:#X}", hash) //We don't, return hash value as hex string
+        }
+    }
+}
