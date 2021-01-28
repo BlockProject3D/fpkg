@@ -53,11 +53,34 @@ fn print_sht(bpx: &Decoder)
     println!("");
 }
 
+fn print_metadata(bpx: &Decoder, hex: bool)
+{
+    println!("====> BPX TypeExt <====");
+    if hex
+    {
+        for i in 0..16
+        {
+            print!("{:02X} ", bpx.main_header.type_ext[i]);
+        }
+        println!("");
+    }
+    else
+    {
+
+    }
+    println!("====> End <====");
+    println!("");
+}
+
 pub fn run(file: &Path, matches: &ArgMatches) -> Result<()>
 {
     let bpx = bpx::bpx::Decoder::new(Path::new(file))?;
 
     print_main_header(&bpx);
+    if matches.is_present("metadata")
+    {
+        print_metadata(&bpx, matches.is_present("hex"));
+    }
     if matches.is_present("sht")
     {
         print_sht(&bpx);

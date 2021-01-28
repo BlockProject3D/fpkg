@@ -21,7 +21,10 @@ fn main() {
         (@subcommand info =>
             (about: "Prints general information about a given BPX file ")
             (@arg sht: --sht "Prints the section header table (SHT)")
-            (@arg section_id: -d +takes_value "Dumps the content in hexadecimal of the section identified by the given index")
+            (@arg metadata: -m --metadata "Prints metadata of this BPX (metadata here refers to the TypeExt block")
+            (@arg hex: -h --hex "Prints data in hex")
+            (@arg force: -f --force "Force prints data to terminal ignoring potential terminal destruction")
+            (@arg section_id: -d +takes_value "Dumps the content of the section identified by the given index")
         )
         (@subcommand pack =>
             (about: "Create a BPX type P (Package) with given data inside")
