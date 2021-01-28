@@ -129,7 +129,7 @@ fn main() {
         (author: "BlockProject3D <https://github.com/BlockProject3D>")
         (about: "The easy C++ package manager built for BlockProject 3D")
         (@subcommand build =>
-            (about: "Run automated build using CMake, Make or Lua")
+            (about: "Run automated build using CMake or Lua")
             (@arg configuration: "Specifies an optional configuration to build with.")
         )
         (@subcommand test =>

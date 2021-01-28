@@ -167,7 +167,7 @@ impl Decoder
             }
             if header.flags & FLAG_CHECK_CRC32 == FLAG_CHECK_CRC32
             {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] addler32 checksum is not supported by FPKG"));
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "[BPX] crc32 checksum is not supported by FPKG"));
             }
             final_checksum += checksum;
             self.sections.push(header);
