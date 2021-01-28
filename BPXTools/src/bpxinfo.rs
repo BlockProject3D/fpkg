@@ -37,7 +37,7 @@ fn print_sht(bpx: &Decoder)
         }
         if section.flags & 0x4 == 0x4
         {
-            flags.push_str(" | CheckAddler32");
+            flags.push_str(" | CheckCrc32");
         }
         if section.flags & 0x8 == 0x8
         {

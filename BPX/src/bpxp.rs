@@ -135,8 +135,8 @@ impl Decoder
                     continue;
                 }
             }
-            let mut count: u32 = 0;
-            while count < v.size
+            let mut count: u64 = 0;
+            while count < v.size as u64
             {
                 let mut header: [u8; 12] = [0; 12];
                 section.read(&mut header)?;
@@ -145,17 +145,17 @@ impl Decoder
                 {
                     return Err(io::Error::new(io::ErrorKind::InvalidData, "[BPX] Empty path string detected, aborting to prevent damage on host files"));
                 }
-                println!("Reading {}...", path);
+                let size = LittleEndian::read_u64(&header[0..8]);
+                println!("Reading {} with {} byte(s)...", path, size);
                 let mut dest = PathBuf::new();
                 dest.push(target);
                 dest.push(path);
-                let size = LittleEndian::read_u64(&header[0..8]);
                 truncated = self.extract_file(&mut section, &dest, size)?;
                 if truncated.is_some()
                 {
                     break;
                 }
-                count += size as u32 + 12;
+                count += size + 12;
             }
         }
         return Ok(());
