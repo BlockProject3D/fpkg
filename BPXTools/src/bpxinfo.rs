@@ -3,6 +3,7 @@ use bpx::bpx::Decoder;
 use clap::ArgMatches;
 use std::path::Path;
 use std::string::String;
+use super::type_ext_maps::get_type_ext_map;
 
 fn print_main_header(bpx: &Decoder)
 {
@@ -53,20 +54,37 @@ fn print_sht(bpx: &Decoder)
     println!("");
 }
 
+fn hex_print(block: &[u8])
+{
+    for i in 0..block.len()
+    {
+        print!("{:02X} ", block[i]);
+        if i % 16 == 0
+        {
+            println!("");
+        }
+    }
+}
+
 fn print_metadata(bpx: &Decoder, hex: bool)
 {
     println!("====> BPX TypeExt <====");
     if hex
     {
-        for i in 0..16
-        {
-            print!("{:02X} ", bpx.main_header.type_ext[i]);
-        }
+        hex_print(&bpx.main_header.type_ext);
         println!("");
     }
     else
     {
-
+        match get_type_ext_map(bpx.main_header.btype)
+        {
+            Some(func) => func(&bpx.main_header.type_ext),
+            None =>
+            {
+                hex_print(&bpx.main_header.type_ext);
+                println!("");
+            }
+        }
     }
     println!("====> End <====");
     println!("");

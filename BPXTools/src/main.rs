@@ -5,6 +5,7 @@ use std::path::Path;
 mod bpxinfo;
 mod pack;
 mod unpack;
+mod type_ext_maps;
 
 fn error(err: &std::io::Error)
 {
