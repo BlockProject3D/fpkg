@@ -204,6 +204,15 @@ impl Decoder
         return v;
     }
 
+    pub fn find_section_by_index(&self, index: usize) -> Option<BPXSectionHeader>
+    {
+        return match self.sections.get(index)
+        {
+            Some(section) => Some(*section),
+            None => None
+        };
+    }
+
     pub fn get_section_by_index(&self, index: usize) -> BPXSectionHeader
     {
         return self.sections[index];
