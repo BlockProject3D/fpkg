@@ -167,11 +167,11 @@ fn print_section(bpx: &mut Decoder, section_id_str: &str, mut out_file: Option<&
             {
                 Some(ref mut v) =>
                 { //Rust is an annoying language unable to understand that there's no return!
-                    v.write(&buf)?;
+                    v.write(&buf[0..res])?;
                 },
                 None =>
                 {
-                    std::io::stdout().write(&buf)?;
+                    std::io::stdout().write(&buf[0..res])?;
                 }
             }
             res = data.read(&mut buf)?;
@@ -193,15 +193,15 @@ pub fn run(file: &Path, matches: &ArgMatches) -> Result<()>
     {
         print_sht(&bpx);
     }
-    if let Some(s) = matches.value_of("section_id")
+    if let Some(sidstr) = matches.value_of("section_id")
     {
         match matches.value_of("out_file")
         {
-            None => print_section(&mut bpx, s, None, matches.is_present("hex"), matches.is_present("force"))?,
+            None => print_section(&mut bpx, sidstr, None, matches.is_present("hex"), matches.is_present("force"))?,
             Some(s) =>
             {
                 let mut fle = File::create(s)?;
-                print_section(&mut bpx, s, Some(&mut fle), matches.is_present("hex"), matches.is_present("force"))?;
+                print_section(&mut bpx, sidstr, Some(&mut fle), matches.is_present("hex"), matches.is_present("force"))?;
             }
         }
         
