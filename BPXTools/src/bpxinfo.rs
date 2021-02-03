@@ -180,6 +180,24 @@ fn print_section(bpx: &mut Decoder, section_id_str: &str, mut out_file: Option<&
     return Ok(());
 }
 
+fn print_structured_data(bpx: &mut Decoder, section_id_str: &str) -> Result<()>
+{
+    let section_id: usize = match section_id_str.parse()
+    {
+        Ok(id) => id,
+        Err(e) => return Err(Error::new(ErrorKind::InvalidInput, format!("Could not parse section index {} ({})", section_id_str, e)))
+    };
+    let section = match bpx.find_section_by_index(section_id)
+    {
+        Some(section) => section,
+        None => return Err(Error::new(ErrorKind::InvalidInput, format!("Could not find section with index {}", section_id)))
+    };
+    let mut data = bpx.open_section(&section)?;
+    let object = bpx::sd::load_structured_data(&mut data)?;
+
+    return super::printsd::print_object(1, &object);
+}
+
 pub fn run(file: &Path, matches: &ArgMatches) -> Result<()>
 {
     let mut bpx = bpx::bpx::Decoder::new(Path::new(file))?;
@@ -195,16 +213,22 @@ pub fn run(file: &Path, matches: &ArgMatches) -> Result<()>
     }
     if let Some(sidstr) = matches.value_of("section_id")
     {
-        match matches.value_of("out_file")
+        if matches.is_present("bpxsd")
         {
-            None => print_section(&mut bpx, sidstr, None, matches.is_present("hex"), matches.is_present("force"))?,
-            Some(s) =>
-            {
-                let mut fle = File::create(s)?;
-                print_section(&mut bpx, sidstr, Some(&mut fle), matches.is_present("hex"), matches.is_present("force"))?;
-            }
+            print_structured_data(&mut bpx, sidstr)?;
         }
-        
+        else
+        {
+            match matches.value_of("out_file")
+            {
+                None => print_section(&mut bpx, sidstr, None, matches.is_present("hex"), matches.is_present("force"))?,
+                Some(s) =>
+                {
+                    let mut fle = File::create(s)?;
+                    print_section(&mut bpx, sidstr, Some(&mut fle), matches.is_present("hex"), matches.is_present("force"))?;
+                }
+            }    
+        }
     }
     return Ok(());
 }

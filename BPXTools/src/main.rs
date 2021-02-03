@@ -34,6 +34,7 @@ mod bpxinfo;
 mod pack;
 mod unpack;
 mod type_ext_maps;
+mod printsd;
 
 fn error(err: &std::io::Error)
 {
@@ -49,12 +50,13 @@ fn main() {
         (@arg file: -f --file +required +takes_value "Path to the BPX file to debug/create")
         (@subcommand info =>
             (about: "Prints general information about a given BPX file ")
-            (@arg sht: --sht "Prints the section header table (SHT)")
+            (@arg sht: -s --sht "Prints the section header table (SHT)")
             (@arg metadata: -m --metadata "Prints metadata of this BPX (metadata here refers to the TypeExt block")
             (@arg hex: -x --hex "Prints data in hex")
             (@arg force: -f --force "Force prints data to terminal ignoring potential terminal destruction")
             (@arg section_id: -d --dump +takes_value "Dumps the content of the section identified by the given index")
             (@arg out_file: -o --output +takes_value "Save dump output to a file")
+            (@arg bpxsd: --bpxsd "Parse the section to print (specified in -d) as a BPX Structured Data Object (BPXSD)")
         )
         (@subcommand pack =>
             (about: "Create a BPX type P (Package) with given data inside")
