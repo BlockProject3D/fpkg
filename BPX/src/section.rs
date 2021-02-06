@@ -410,7 +410,7 @@ fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, deflated_si
         }
         while status != expected
         {
-            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE * 2);
+            let mut odata: Vec<u8> = Vec::with_capacity(READ_BLOCK_SIZE * 16);
             match decoder.process_vec(&idata[0..res], &mut odata, action)
             {
                 Ok(s) => status = s,
