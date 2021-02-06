@@ -1,0 +1,5 @@
+export NAME="Pack (SIMPLE)"
+export COMMAND="-f test.bpx pack ../LICENSE.txt"
+export DESC="Test the pack command"
+export ADDITIONAL="diff test.bpx test/available/test.bpx"
+export STATUS=0

@@ -1,0 +1,6 @@
+export NAME="Unpack (COMPLEX)"
+export COMMAND="-f test.bpx unpack"
+export DESC="Test the unpack command"
+export ADDITIONAL="diff bpxdbg target/debug/bpxdbg"
+export STATUS=0
+export POST_COMMAND="rm bpxdbg /tmp/bpxdbg"

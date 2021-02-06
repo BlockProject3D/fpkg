@@ -1,0 +1,4 @@
+export NAME="Info (SHT)"
+export COMMAND="-f test.bpx info -s"
+export DESC="Test the info command"
+export STATUS=0

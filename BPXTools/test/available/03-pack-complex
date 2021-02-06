@@ -1,0 +1,5 @@
+export NAME="Pack (COMPLEX)"
+export PRE_COMMAND="cp target/debug/bpxdbg /tmp/bpxdbg"
+export COMMAND="-f test.bpx pack /tmp/bpxdbg"
+export DESC="Test the pack command"
+export STATUS=0

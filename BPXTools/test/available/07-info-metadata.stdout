@@ -1,0 +1,26 @@
+====> BPX Main Header <====
+Type: P
+Version: 1
+File size: 3362131
+Number of sections: 2
+====> End <====
+
+====> BPX TypeExt <====
+Architecture: Any
+Platform: Any
+Generator: PK
+====> End <====
+
+====> BPX Section Header Table <====
+Section #0:
+	Type: 255
+	Size (after compression): 7
+	Size: 7
+	Flags:  CheckWeak
+Section #1:
+	Type: 1
+	Size (after compression): 3362036
+	Size: 15318196
+	Flags:  CompressXZ | CheckWeak
+====> End <====
+

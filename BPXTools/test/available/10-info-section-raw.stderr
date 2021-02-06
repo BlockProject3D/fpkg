@@ -1,0 +1,1 @@
+Outputing binary data to standard output can mess-up your terminal, please use --force if you're sure to continue

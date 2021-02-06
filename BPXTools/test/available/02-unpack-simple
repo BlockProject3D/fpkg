@@ -1,0 +1,6 @@
+export NAME="Unpack (SIMPLE)"
+export COMMAND="-f test/available/test.bpx unpack"
+export DESC="Test the unpack command"
+export ADDITIONAL="diff LICENSE.txt ../LICENSE.txt"
+export STATUS=0
+export POST_COMMAND="rm ./LICENSE.txt"
