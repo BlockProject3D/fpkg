@@ -7,7 +7,7 @@ stages:
     script:
         - cd BPX && cargo build && cd ..
         - cd Client && cargo build && cd ..
-        - cd BPXTools && cargo build && ./test/test.sh && cd ..
+        - cd BPXTools && cargo build && cd ..
 
 .test-script:
     stage: test
