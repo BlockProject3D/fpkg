@@ -49,6 +49,6 @@ test-win64:
         - shared-windows
         - windows-1809
     before_script:
-        - choco install -y activeperl
+        - choco install -y strawberryperl
     extends:
         - .test-script
