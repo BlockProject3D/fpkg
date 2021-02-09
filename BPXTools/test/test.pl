@@ -23,14 +23,47 @@ sub EnsureEqual {
     return 1;
 }
 
+sub hackFixedStatusCodeSystem {
+    my $cmdline = $_[0];
+    my $incorrect_res = system($cmdline);
+    if ($incorrect_res == -1) {
+        return -1;
+    } elsif ($incorrect_res & 127) {
+        return $incorrect_res & 127;
+    } else {
+        return $incorrect_res >> 8;
+    }
+}
+
 foreach $a (@files) {
     if (!($a =~ /\./)) {
         require "$cwd/test/available/$a.pl";
         my $name = $Test->{Name};
         my $desc = $Test->{Description};
+        my $cmd = $Test->{Command};
+        my $status = $Test->{Status};
         print "Running test: $name - $desc\n";
         TestBegin();
-        
+        my $res = hackFixedStatusCodeSystem("./target/debug/bpxdbg $cmd 1>mybin.stdout 2>mybin.stderr");
+        if ($res != $status) {
+            print "Bad exit status: expected $status, got $res\n";
+            print "\e[1;31m\t> Test Failure\e[0m\n";
+            next;
+        }
+        my $stdout = "$cwd/test/available/$a.stdout";
+        my $stderr = "$cwd/test/available/$a.stderr";
+        if (-e $stdout) {
+            if (!EnsureEqual($stdout, "mybin.stdout")) {
+                print "\e[1;31m\t> Test Failure\e[0m\n";
+                next;
+            }
+        }
+        if (-e $stderr) {
+            if (!EnsureEqual($stderr, "mybin.stderr")) {
+                print "\e[1;31m\t> Test Failure\e[0m\n";
+                next;
+            }
+        }
         if (!TestEnd()) {
             print "\e[1;31m\t> Test Failure\e[0m\n";
             next;
