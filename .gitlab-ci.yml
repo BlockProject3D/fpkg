@@ -40,7 +40,7 @@ test-linux:
     image: perl:5.32.1-threaded
     needs: [build-linux]
     extends:
-        - test-script
+        - .test-script
 
 test-win64:
     needs: [build-win64]
@@ -51,4 +51,4 @@ test-win64:
     before_script:
         - choco install -y activeperl
     extends:
-        - test-script
+        - .test-script
