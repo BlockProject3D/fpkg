@@ -50,5 +50,6 @@ test-win64:
         - windows-1809
     before_script:
         - choco install -y strawberryperl
+        - refreshenv
     extends:
         - .test-script
