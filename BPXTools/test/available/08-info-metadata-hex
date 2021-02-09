@@ -1,4 +1,0 @@
-export NAME="Info (Metadata + Hex)"
-export COMMAND="-f test.bpx info -smx"
-export DESC="Test the info command"
-export STATUS=0

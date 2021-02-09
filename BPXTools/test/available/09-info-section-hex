@@ -1,4 +1,0 @@
-export NAME="Info (Section + Hex)"
-export COMMAND="-f test.bpx info -d 0 -x"
-export DESC="Test the info command"
-export STATUS=0

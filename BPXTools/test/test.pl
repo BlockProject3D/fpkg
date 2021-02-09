@@ -35,8 +35,10 @@ sub hackFixedStatusCodeSystem {
     }
 }
 
-foreach $a (@files) {
-    if (!($a =~ /\./)) {
+foreach $b (@files) {
+    if ($b =~ /\.pl/) {
+        @arr = split(/\./, $b);
+        my $a = $arr[0];
         require "$cwd/test/available/$a.pl";
         my $name = $Test->{Name};
         my $desc = $Test->{Description};
@@ -71,3 +73,6 @@ foreach $a (@files) {
         print "\e[1;32m\t> Test Passed\e[0m\n";
     }
 }
+
+unlink("mybin.stdout");
+unlink("mybin.stderr");

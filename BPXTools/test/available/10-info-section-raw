@@ -1,4 +1,0 @@
-export NAME="Info (Section)"
-export COMMAND="-f test.bpx info -d 0"
-export DESC="Test the info command"
-export STATUS=1
