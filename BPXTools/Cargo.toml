@@ -9,3 +9,7 @@ edition = "2018"
 [dependencies]
 clap = "2.27.0"
 bpx = { path = "../BPX" }
+
+[profile.dev]
+opt-level = 1
+overflow-checks = false
