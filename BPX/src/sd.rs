@@ -131,7 +131,8 @@ impl IndexMut<usize> for Array
 #[derive(PartialEq, Clone)]
 pub struct Object
 {
-    props: HashMap<u64, Value>
+    props: HashMap<u64, Value>,
+    prop_names: Array
 }
 
 impl Object
@@ -140,7 +141,8 @@ impl Object
     {
         return Object
         {
-            props: HashMap::new()
+            props: HashMap::new(),
+            prop_names: Array::new()
         }
     }
 
@@ -152,6 +154,7 @@ impl Object
     pub fn set(&mut self, name: &str, value: Value)
     {
         self.raw_set(super::utils::hash(name), value);
+        self.prop_names.add(Value::String(String::from(name)));
     }
 
     pub fn raw_get(&self, hash: u64) -> Option<&Value>
@@ -172,6 +175,12 @@ impl Object
     pub fn get_keys(&self) -> Keys<'_, u64, Value>
     {
         return self.props.keys();
+    }
+
+    pub fn add_debug_info(&mut self)
+    {
+        let prop_names = std::mem::replace(&mut self.prop_names, Array::new());
+        self.set("__debug__", Value::Array(prop_names));
     }
 }
 
