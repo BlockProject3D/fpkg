@@ -310,6 +310,26 @@ impl Encoder
         }
         return Ok(());
     }
+
+    pub fn pack_vname(&mut self, source: &Path, vname: &str) -> io::Result<()>
+    {
+        let strings = match self.encoder.find_section_by_type(bpx::STRING_SECTION_TYPE)
+        {
+            Some(v) => v,
+            None => self.encoder.add_section(bpx::STRING_SECTION_TYPE, 0)?
+        };
+        let md = metadata(source)?;
+        let data_section = self.encoder.add_section(DATA_SECTION_TYPE, 0)?;
+        if md.is_file()
+        {
+            self.pack_file(source, String::from(vname), data_section, strings)?;
+            return Ok(());
+        }
+        else
+        {
+            return self.pack_dir(source, String::from(vname), data_section, strings);
+        }
+    }
     
     pub fn pack(&mut self, source: &Path) -> io::Result<()>
     {
