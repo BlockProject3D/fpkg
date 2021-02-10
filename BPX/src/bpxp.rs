@@ -41,6 +41,7 @@ use std::fs::read_dir;
 use super::bpx;
 use super::sd::Object;
 use super::sd::load_structured_data;
+use super::sd::write_structured_data;
 
 const DATA_SECTION_TYPE: u8 = 0x1;
 
@@ -349,6 +350,15 @@ impl Encoder
         {
             return self.pack_dir(source, get_name_from_path(source)?, data_section, strings);
         }
+    }
+
+    pub fn add_metadata(&mut self, obj: &Object) -> io::Result<()>
+    {
+        let section = self.encoder.add_section(254, 0)?;
+        let mut data = self.encoder.get_section_by_index(section);
+
+        write_structured_data(&mut data, obj)?;
+        return Ok(());
     }
 
     pub fn save(&mut self) -> io::Result<()>
