@@ -35,7 +35,7 @@ use crate::profile::Profile;
 use crate::luaengine::Compiler;
 use crate::luaengine::LuaFile;
 
-fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String, Error>
+pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String, Error>
 {
     match configs
     {
