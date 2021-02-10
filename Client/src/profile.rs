@@ -174,6 +174,14 @@ impl Profile
         return Ok(());
     }
 
+    pub fn fill_structured_data(&self, obj: &mut bpx::sd::Object)
+    {
+        for (k, v) in self.data.iter()
+        {
+            obj.set(k, bpx::sd::Value::String(v.clone()));
+        }
+    }
+
     pub fn regenerate_self(&mut self) -> Result<(), String> //Regenerate profile for current platform
     {
         if cfg!(target_os = "windows")

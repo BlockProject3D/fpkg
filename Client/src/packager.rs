@@ -28,10 +28,91 @@
 
 use std::path::Path;
 use std::path::PathBuf;
+use bpx::bpxp;
+use bpx::sd;
+use std::io;
+use std::fs::metadata;
 
 use crate::luaengine::LuaFile;
+use crate::luaengine::PackageTable;
+use crate::luaengine::Target;
 use crate::builder::Error;
 use crate::profile::Profile;
+use crate::builder::check_build_configuration;
+
+fn new_pk(profile: &Profile) -> io::Result<bpxp::Encoder>
+{
+    //Format = build-<name of platform>-<architecture>-<compiler id><compiler version>.bpx
+    let mut s = String::from("build-");
+
+    s.push_str(profile.get("Platform").unwrap());
+    s.push('-');
+    s.push_str(profile.get("Arch").unwrap());
+    s.push('-');
+    s.push_str(profile.get("CompilerName").unwrap());
+    s.push_str(profile.get("CompilerVersion").unwrap());
+    s.push_str(".bpx");
+    return bpxp::Encoder::new(Path::new(&s));
+}
+
+fn get_vname(cfg: String, subdir: &str, path: &Path) -> io::Result<String>
+{
+    let md = metadata(path)?;
+    let mut init = cfg;
+
+    init.push('/');
+    init.push_str(subdir);
+    if md.is_file()
+    {
+        init.push('/');
+        init.push_str(&bpx::strings::get_name_from_path(path)?);
+        return Ok(init);
+    }
+    else
+    {
+        return Ok(init);
+    }
+}
+
+fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) -> Result<(), Error>
+{
+    if let Some(incs) = &target.includes
+    {
+        for inc in incs
+        {
+            let cfg = check_build_configuration(&inc.configuration, &package.configurations)?;
+            let path = Path::new(&inc.path);
+            let vname = match get_vname(cfg, "include", &path)
+            {
+                Ok(vname) => vname,
+                Err(e) => return Err(Error::Io(e))
+            };
+            //cfg.push_str("/include");
+            if let Err(e) = bpx.pack_vname(path, &vname)
+            {
+                return Err(Error::Io(e));
+            }
+        }
+    }
+    if let Some(bins) = &target.binaries
+    {
+        for bin in bins
+        {
+            let cfg = check_build_configuration(&bin.configuration, &package.configurations)?;
+            let path = Path::new(&bin.path);
+            let vname = match get_vname(cfg, "bin", &path)
+            {
+                Ok(vname) => vname,
+                Err(e) => return Err(Error::Io(e))
+            };
+            if let Err(e) = bpx.pack_vname(path, &vname)
+            {
+                return Err(Error::Io(e));
+            }
+        }
+    }
+    return Ok(());
+}
 
 pub fn package(path: &Path) -> Result<i32, Error>
 {
@@ -48,7 +129,25 @@ pub fn package(path: &Path) -> Result<i32, Error>
     println!("Packaging {} - {} ({}) with Lua Engine...", package.name, package.version, package.description);
     if let Some(target) = lua.func_package(&profile)?
     {
-
+        let mut pk = match new_pk(&profile)
+        {
+            Ok(v) => v,
+            Err(e) => return Err(Error::Io(e))
+        };
+        let mut obj = sd::Object::new();
+        obj.set("Name", sd::Value::String(package.name.clone()));
+        obj.set("Version", sd::Value::String(package.version.clone()));
+        obj.set("Description", sd::Value::String(package.description.clone()));
+        profile.fill_structured_data(&mut obj);
+        if target.typefkjh == "Library"
+        {
+            //Package a library
+            pack_lib(&mut pk, &target, &package)?;
+        }
+        if let Err(e) = pk.save()
+        {
+            return Err(Error::Io(e));
+        }
         return Ok(0)
     }
     eprintln!("WARNING: Nothing to package!");

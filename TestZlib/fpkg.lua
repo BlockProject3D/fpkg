@@ -23,14 +23,14 @@ function Package(profile)
         command.Run("cmake", {"--build", "zlib-"..v, "--target", "install"})
     end
     local target = {
-        Type = "Library", --Either Library or SDK
+        Type = "Library", --Either Library or Framework
         Includes = { --Only for Library targets
             {"./Release/include", "Release"}, --Relative path, configuration type
             {"./Debug/include", "Debug"}
         },
-        Binarries = { --Only for Library targets
-            {"./Debug/lib", "Debug"}, --Relative path, configuration type
-            {"./Release/lib", "Release"}
+        Binaries = { --Only for Library targets
+            {"./Debug/lib/libz.a", "Debug"}, --Relative path, configuration type
+            {"./Release/lib/libz.a", "Release"}
         }
     }
     return target
