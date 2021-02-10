@@ -17,3 +17,7 @@ bpx = { path = "../BPX" }
 
 [[bin]]
 name = "fpkg"
+
+[profile.dev]
+opt-level = 1
+overflow-checks = false
