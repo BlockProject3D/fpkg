@@ -114,6 +114,21 @@ fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) ->
     return Ok(());
 }
 
+fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<(), Error>
+{
+    if let Some(files) = &target.content
+    {
+        for file in files
+        {
+            if let Err(e) = bpx.pack(Path::new(&file))
+            {
+                return Err(Error::Io(e));
+            }
+        }
+    }
+    return Ok(());
+}
+
 pub fn package(path: &Path) -> Result<i32, Error>
 {
     let profile = Profile::new(path);
@@ -143,6 +158,11 @@ pub fn package(path: &Path) -> Result<i32, Error>
         {
             //Package a library
             pack_lib(&mut pk, &target, &package)?;
+        }
+        else if target.typefkjh == "Framework"
+        {
+            //Package a framework
+            pack_framework(&mut pk, &target)?;
         }
         if let Err(e) = pk.save()
         {
