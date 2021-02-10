@@ -154,6 +154,10 @@ pub fn package(path: &Path) -> Result<i32, Error>
         obj.set("Version", sd::Value::String(package.version.clone()));
         obj.set("Description", sd::Value::String(package.description.clone()));
         profile.fill_structured_data(&mut obj);
+        if let Err(e) = pk.add_metadata(&obj)
+        {
+            return Err(Error::Io(e));
+        }
         if target.typefkjh == "Library"
         {
             //Package a library
