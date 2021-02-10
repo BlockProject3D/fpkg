@@ -1,22 +1,27 @@
 #!/usr/bin/perl
 
-use File::Copy;
+use Digest::SHA;
+use Cwd;
 
 opendir my $dir, "test/available" or die "Cannot open directory: $!";
 my @files = sort { $a cmp $b } readdir $dir;
 closedir $dir;
 
-my $cwd = substr `pwd`, 0, -1;
+my $cwd = getcwd;
 
 sub EnsureEqual {
     my $file1 = $_[0];
     my $file2 = $_[1];
-    my $sha1 = `shasum $file1`;
-    my $r1 = $?;
-    my $sha2 = `shasum $file2`;
-    my $r2 = $?;
+    my $sha1 = Digest::SHA->new;
+    my $sha2 = Digest::SHA->new;
 
-    if ($r1 != 0 || $r2 != 0 || $sha1 != $sha2) {
+    if (!(-e $file1) || !(-e $file2)) {
+        print "Files $file1 and $file2 differ\n";
+        return 0;
+    }
+    $sha1->addfile($file1);
+    $sha2->addfile($file2);
+    if ($sha1->hexdigest != $sha2->hexdigest) {
         print "Files $file1 and $file2 differ\n";
         return 0;
     }
@@ -26,6 +31,7 @@ sub EnsureEqual {
 sub hackFixedStatusCodeSystem {
     my $cmdline = $_[0];
     my $incorrect_res = system($cmdline);
+
     if ($incorrect_res == -1) {
         return -1;
     } elsif ($incorrect_res & 127) {
@@ -34,6 +40,8 @@ sub hackFixedStatusCodeSystem {
         return $incorrect_res >> 8;
     }
 }
+
+my $endres = 0;
 
 foreach $b (@files) {
     if ($b =~ /\.pl/) {
@@ -50,6 +58,7 @@ foreach $b (@files) {
         if ($res != $status) {
             print "Bad exit status: expected $status, got $res\n";
             print "\e[1;31m\t> Test Failure\e[0m\n";
+            $endres = 1;
             next;
         }
         my $stdout = "$cwd/test/available/$a.stdout";
@@ -57,17 +66,20 @@ foreach $b (@files) {
         if (-e $stdout) {
             if (!EnsureEqual($stdout, "mybin.stdout")) {
                 print "\e[1;31m\t> Test Failure\e[0m\n";
+                $endres = 1;
                 next;
             }
         }
         if (-e $stderr) {
             if (!EnsureEqual($stderr, "mybin.stderr")) {
                 print "\e[1;31m\t> Test Failure\e[0m\n";
+                $endres = 1;
                 next;
             }
         }
         if (!TestEnd()) {
             print "\e[1;31m\t> Test Failure\e[0m\n";
+            $endres = 1;
             next;
         }
         print "\e[1;32m\t> Test Passed\e[0m\n";
@@ -76,3 +88,5 @@ foreach $b (@files) {
 
 unlink("mybin.stdout");
 unlink("mybin.stderr");
+
+exit($endres);
