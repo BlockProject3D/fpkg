@@ -60,3 +60,20 @@ pub fn find_builder(path: &Path) -> Option<Box<dyn Builder>>
     }
     return None;
 }
+
+pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String, Error>
+{
+    match configs
+    {
+        None => return Ok(String::from(config)),
+        Some(v) =>
+        {
+            let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
+            match cfg
+            {
+                None => return Err(Error::Generic(format!("Could not find configuration named {}", config))),
+                Some(v) => return Ok(String::from(v))
+            }
+        }
+    }
+}

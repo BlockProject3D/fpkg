@@ -34,23 +34,7 @@ use crate::builder::Error;
 use crate::profile::Profile;
 use crate::luaengine::Compiler;
 use crate::luaengine::LuaFile;
-
-pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String, Error>
-{
-    match configs
-    {
-        None => return Ok(String::from(config)),
-        Some(v) =>
-        {
-            let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
-            match cfg
-            {
-                None => return Err(Error::Generic(format!("Could not find configuration named {}", config))),
-                Some(v) => return Ok(String::from(v))
-            }
-        }
-    }
-}
+use crate::builder::check_build_configuration;
 
 fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<(), Error>
 {
