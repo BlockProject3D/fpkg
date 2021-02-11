@@ -31,6 +31,7 @@ use std::path::PathBuf;
 
 use crate::builder::Builder;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
 use crate::luaengine::Compiler;
@@ -47,7 +48,7 @@ fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<()>
             let platform = profile.get("Platform").unwrap();
             if !v.iter().any(|e| e == platform)
             {
-                return Err(Error::Generic(format!("Unsupported platform {}", platform)));
+                return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported platform {}", platform)));
             }
             return Ok(());
         }
@@ -64,7 +65,7 @@ fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<()>
             let arch = profile.get("Arch").unwrap();
             if !v.iter().any(|e| e == arch)
             {
-                return Err(Error::Generic(format!("Unsupported acrhitecture {}", arch)));
+                return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported acrhitecture {}", arch)));
             }
             return Ok(());
         }
@@ -87,7 +88,7 @@ fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<()>
                 }
                 else
                 {
-                    return Err(Error::Generic(format!("Unsuported compiler version {}", version)));
+                    return Err(Error::Generic(ErrorDomain::Builder, format!("Unsuported compiler version {}", version)));
                 }
             }
         }
@@ -96,7 +97,7 @@ fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<()>
     {
         if !versions.iter().any(|e| e == version)
         {
-            return Err(Error::Generic(format!("Unsuported compiler version {}", version)));
+            return Err(Error::Generic(ErrorDomain::Builder, format!("Unsuported compiler version {}", version)));
         }
     }
     return Ok(());
@@ -113,7 +114,7 @@ fn check_compiler(profile: &Profile, compilers: &Option<Vec<Compiler>>) -> Resul
             let version = profile.get("CompilerVersion").unwrap();
             match v.iter().find(|v| &v.name == compiler)
             {
-                None => return Err(Error::Generic(format!("Unsupported compiler"))),
+                None => return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported compiler"))),
                 Some(cfg) => return check_compiler_version(version, cfg)
             }
         }
@@ -144,7 +145,7 @@ impl Builder for LuaBuilder
         let profile = Profile::new(path)?;
         if !profile.exists()
         {
-            return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")))
+            return Err(Error::Generic(ErrorDomain::Builder, String::from("Unable to load project profile; did you forget to run fpkg install?")))
         }
         let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
         let mut lua = LuaFile::new();

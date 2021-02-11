@@ -31,7 +31,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::fs;
 
-use crate::builder::Error;
+use crate::common::Error;
+use crate::common::Result;
+use crate::common::ErrorDomain;
 
 pub struct RegistryInfo
 {
@@ -50,12 +52,12 @@ fn read_settings(path: &Path) -> Result<Settings, Error>
     let res = match fs::read_to_string(path)
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Io(e))
+        Err(e) => return Err(Error::Io(ErrorDomain::Settings, e))
     };
     let json = match json::parse(&res)
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Generic(format!("Error parsing json: {}", e)))
+        Err(e) => return Err(Error::Generic(ErrorDomain::Settings, format!("Error parsing json: {}", e)))
     };
     for v in json.entries()
     {
@@ -71,7 +73,7 @@ impl Settings
         let mut path = match config_dir()
         {
             Some(v) => v,
-            None => return Err(Error::Generic(String::from("Unable to obtain a valid config directory, is your system sane?!")))
+            None => return Err(Error::Generic(ErrorDomain::Settings, String::from("Unable to obtain a valid config directory, is your system sane?!")))
         };
         path.push(Path::new("fpkg-settings.json"));
 

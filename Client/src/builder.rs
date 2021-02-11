@@ -32,6 +32,7 @@ use std::string::String;
 
 use crate::common::Result;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 use crate::luabuilder::LuaBuilder;
 
 pub trait Builder
@@ -65,7 +66,7 @@ pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) ->
             let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
             match cfg
             {
-                None => return Err(Error::Generic(format!("Could not find configuration named {}", config))),
+                None => return Err(Error::Generic(ErrorDomain::Builder, format!("Could not find configuration named {}", config))),
                 Some(v) => return Ok(String::from(v))
             }
         }

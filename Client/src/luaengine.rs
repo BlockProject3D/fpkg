@@ -35,6 +35,7 @@ use rlua::FromLua;
 
 use crate::command;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
 
@@ -225,10 +226,10 @@ impl LuaFile
                 match res
                 {
                     Ok(()) => return Ok(()),
-                    Err(e) => return Err(Error::Lua(e))
+                    Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
                 }
             },
-            Err(e) => return Err(Error::Io(e))
+            Err(e) => return Err(Error::Io(ErrorDomain::LuaEngine, e))
         }
     }
 
@@ -249,7 +250,7 @@ impl LuaFile
         match res
         {
             Ok(()) => return Ok(()),
-            Err(e) => return Err(Error::Lua(e))
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
         }
     }
 
@@ -284,7 +285,7 @@ impl LuaFile
         match res
         {
             Ok(v) => return Ok(v),
-            Err(e) => return Err(Error::Lua(e))
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
         }
     }
 
@@ -319,7 +320,7 @@ impl LuaFile
         match res
         {
             Ok(v) => return Ok(v),
-            Err(e) => return Err(Error::Lua(e))
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
         }
     }
 
@@ -355,7 +356,7 @@ impl LuaFile
         match res
         {
             Ok(v) => return Ok(v),
-            Err(e) => return Err(Error::Lua(e))
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
         }
     }
 }

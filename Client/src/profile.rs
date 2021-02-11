@@ -36,6 +36,7 @@ use std::io;
 use crate::command;
 use crate::common::Result;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -51,12 +52,12 @@ fn read_profile(path: &Path, map: &mut HashMap<String, String>) -> Result<()>
     let res = match fs::read_to_string(path)
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Io(e))
+        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
     };
     let json = match json::parse(&res)
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Generic(format!("Error parsing json: {}", e)))
+        Err(e) => return Err(Error::Generic(ErrorDomain::Profile, format!("Error parsing json: {}", e)))
     };
     for v in json.entries()
     {
@@ -72,7 +73,7 @@ fn find_compiler_info() -> Result<(String, String)>
     let dir = match tempfile::tempdir()
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Io(e))
+        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
     };
     let content =
     "
@@ -88,12 +89,12 @@ fn find_compiler_info() -> Result<(String, String)>
     ";
     if let Err(e) = fs::write(&dir.path().join("CMakeLists.txt"), content)
     {
-        return Err(Error::Io(e));
+        return Err(Error::Io(ErrorDomain::Profile, e));
     }
     let s = match command::run_command_with_output("cmake", &["-S", &dir.path().to_string_lossy(), "-B", &dir.path().to_string_lossy()])
     {
         Ok(v) => v,
-        Err(e) => return Err(Error::Io(e))
+        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
     };
     let mut compiler = "";
     let mut version = "";
@@ -119,7 +120,7 @@ fn find_compiler_info() -> Result<(String, String)>
     }
     if compiler == "" || version == ""
     {
-        return Err(Error::Generic(String::from("Unable to read compiler information")));
+        return Err(Error::Generic(ErrorDomain::Profile, String::from("Unable to read compiler information")));
     }
     println!("Found compiler {} ({})", compiler, version);
     return Ok((String::from(compiler), String::from(version)));
@@ -166,7 +167,7 @@ impl Profile
 
     pub fn regenerate_cross(&mut self, name: &str) -> Result<()> //Regenerate profile for cross-compile platform
     {
-        return Err(Error::Generic(format!("Platform name {} does not exist", name)));
+        return Err(Error::Generic(ErrorDomain::Profile, format!("Platform name {} does not exist", name)));
     }
 
     pub fn write(&self) -> io::Result<()>

@@ -34,6 +34,7 @@ use crate::luaengine::LuaFile;
 use crate::luaengine::PackageTable;
 use crate::profile::Profile;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 use crate::common::Result;
 
 fn get_pk_file(profile: &Profile) -> String
@@ -55,7 +56,7 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     let profile = Profile::new(path)?;
     if !profile.exists()
     {
-        return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")));
+        return Err(Error::Generic(ErrorDomain::Publisher, String::from("Unable to load project profile; did you forget to run fpkg install?")));
     }
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();

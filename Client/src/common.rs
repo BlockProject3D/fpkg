@@ -28,11 +28,22 @@
 
 use std::io;
 
+pub enum ErrorDomain
+{
+    Profile,
+    Builder,
+    Installer,
+    Packager,
+    Publisher,
+    LuaEngine,
+    Settings
+}
+
 pub enum Error
 {
-    Io(io::Error),
-    Lua(rlua::Error),
-    Generic(String)
+    Io(ErrorDomain, io::Error),
+    Lua(ErrorDomain, rlua::Error),
+    Generic(ErrorDomain, String)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

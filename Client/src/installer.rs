@@ -39,6 +39,7 @@ use crate::profile::Profile;
 use crate::builder;
 use crate::common::Result;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 
 fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
 {
@@ -46,7 +47,7 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
 
     match Profile::mkdir(path)
     {
-        Err(e) => return Err(Error::Io(e)),
+        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e)),
         _ => ()
     }
     if !profile.exists()
@@ -59,7 +60,7 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
     }
     match profile.write()
     {
-        Err(e) => return Err(Error::Io(e)),
+        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e)),
         _ => ()
     }
     //TODO: Implement dependency/framework downloader/installer and connect it right here
@@ -91,7 +92,7 @@ fn check_is_valid_project_dir() -> Result<()>
 {
     let builder = builder::find_builder(Path::new("."));
     if builder.is_none() {
-        return Err(Error::Generic(String::from("Project directory does not contain a valid project file")));
+        return Err(Error::Generic(ErrorDomain::Installer, String::from("Project directory does not contain a valid project file")));
     }
     return Ok(());
 }
@@ -111,7 +112,7 @@ pub fn install(platform: Option<&str>) -> Result<()>
                     install_sub_directory(&path, platform)?;
                 }
             },
-            Err(e) => return Err(Error::Generic(format!("Error reading CMakeLists {}", e)))
+            Err(e) => return Err(Error::Generic(ErrorDomain::Installer, format!("Error reading CMakeLists {}", e)))
         }
     }
     return Ok(());

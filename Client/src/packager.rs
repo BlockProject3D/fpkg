@@ -37,6 +37,7 @@ use crate::luaengine::LuaFile;
 use crate::luaengine::PackageTable;
 use crate::luaengine::Target;
 use crate::common::Error;
+use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
 use crate::builder::check_build_configuration;
@@ -86,11 +87,11 @@ fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) ->
             let vname = match get_vname(cfg, "include", &path)
             {
                 Ok(vname) => vname,
-                Err(e) => return Err(Error::Io(e))
+                Err(e) => return Err(Error::Io(ErrorDomain::Packager, e))
             };
             if let Err(e) = bpx.pack_vname(path, &vname)
             {
-                return Err(Error::Io(e));
+                return Err(Error::Io(ErrorDomain::Packager, e));
             }
         }
     }
@@ -103,11 +104,11 @@ fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) ->
             let vname = match get_vname(cfg, "bin", &path)
             {
                 Ok(vname) => vname,
-                Err(e) => return Err(Error::Io(e))
+                Err(e) => return Err(Error::Io(ErrorDomain::Packager, e))
             };
             if let Err(e) = bpx.pack_vname(path, &vname)
             {
-                return Err(Error::Io(e));
+                return Err(Error::Io(ErrorDomain::Packager, e));
             }
         }
     }
@@ -122,7 +123,7 @@ fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<()>
         {
             if let Err(e) = bpx.pack(Path::new(&file))
             {
-                return Err(Error::Io(e));
+                return Err(Error::Io(ErrorDomain::Packager, e));
             }
         }
     }
@@ -173,7 +174,7 @@ pub fn package(path: &Path) -> Result<i32>
     let profile = Profile::new(path)?;
     if !profile.exists()
     {
-        return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")));
+        return Err(Error::Generic(ErrorDomain::Packager, String::from("Unable to load project profile; did you forget to run fpkg install?")));
     }
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();
@@ -186,7 +187,7 @@ pub fn package(path: &Path) -> Result<i32>
         let mut pk = match new_pk(&profile)
         {
             Ok(v) => v,
-            Err(e) => return Err(Error::Io(e))
+            Err(e) => return Err(Error::Io(ErrorDomain::Packager, e))
         };
         let mut obj = sd::Object::new();
         set_type_ext(&mut pk, &profile);
@@ -197,7 +198,7 @@ pub fn package(path: &Path) -> Result<i32>
         obj.add_debug_info();
         if let Err(e) = pk.add_metadata(&obj)
         {
-            return Err(Error::Io(e));
+            return Err(Error::Io(ErrorDomain::Packager, e));
         }
         if target.typefkjh == "Library"
         {
@@ -211,7 +212,7 @@ pub fn package(path: &Path) -> Result<i32>
         }
         if let Err(e) = pk.save()
         {
-            return Err(Error::Io(e));
+            return Err(Error::Io(ErrorDomain::Packager, e));
         }
         return Ok(0)
     }
