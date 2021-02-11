@@ -26,3 +26,54 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use dirs::config_dir;
+use std::collections::HashMap;
+use std::path::Path;
+use std::fs;
+
+use crate::builder::Error;
+
+pub struct RegistryInfo
+{
+    base_url: String,
+    access_token: String
+}
+
+pub struct Settings
+{
+    default_registry: String,
+    registries: HashMap<String, String>
+}
+
+fn read_settings(path: &Path) -> Result<Settings, Error>
+{
+    let res = match fs::read_to_string(path)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(e))
+    };
+    let json = match json::parse(&res)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Generic(format!("Error parsing json: {}", e)))
+    };
+    for v in json.entries()
+    {
+        let (f, f1) = v;
+        map.insert(String::from(f), f1.to_string());
+    }
+}
+
+impl Settings
+{
+    pub fn new() -> Result<Settings, Error>
+    {
+        let mut path = match config_dir()
+        {
+            Some(v) => v,
+            None => return Err(Error::Generic(String::from("Unable to obtain a valid config directory, is your system sane?!")))
+        };
+        path.push(Path::new("fpkg-settings.json"));
+
+    }
+}

@@ -58,7 +58,7 @@ mod luaengine;
 mod luabuilder;
 mod packager;
 mod publisher;
-mod settings;
+//mod settings;
 
 use std::path::Path;
 use clap::clap_app;
