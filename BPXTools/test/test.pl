@@ -8,6 +8,11 @@ my @files = sort { $a cmp $b } readdir $dir;
 closedir $dir;
 
 my $cwd = getcwd;
+print "Current working directory: $cwd\n";
+
+if ($^O == 'MSWin32') {
+    $ENV{PERL5SHELL} = "powershell";
+}
 
 sub EnsureEqual {
     my $file1 = $_[0];
