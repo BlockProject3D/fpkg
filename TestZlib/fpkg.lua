@@ -1,5 +1,5 @@
 PackageInfo = {
-    Name = "zlib-static",
+    Name = "test-zlib-static",
     Version = "1.0",
     Description = "zlib static library FPKG package",
     Configurations = {"Debug", "Release"}
