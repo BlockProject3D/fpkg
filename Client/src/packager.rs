@@ -129,6 +129,45 @@ fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<(), Error>
     return Ok(());
 }
 
+fn set_type_ext(bpx: &mut bpxp::Encoder, profile: &Profile)
+{
+    let platform = profile.get("Platform").unwrap();
+    let arch = profile.get("Arch").unwrap();
+
+    if platform == "Linux"
+    {
+        bpx.platform = bpxp::Platform::Linux;
+    }
+    else if platform == "OSX"
+    {
+        bpx.platform = bpxp::Platform::Mac;
+    }
+    else if platform == "Windows"
+    {
+        bpx.platform = bpxp::Platform::Windows;
+    }
+    else if platform == "Android"
+    {
+        bpx.platform = bpxp::Platform::Android;
+    }
+    if arch == "x86"
+    {
+        bpx.architecture = bpxp::Architecture::X86;
+    }
+    else if arch == "x86_64"
+    {
+        bpx.architecture = bpxp::Architecture::X86_64;
+    }
+    else if arch == "arm"
+    {
+        bpx.architecture = bpxp::Architecture::Armv7hl;
+    }
+    else if arch == "aarch64"
+    {
+        bpx.architecture = bpxp::Architecture::Aarch64;
+    }
+}
+
 pub fn package(path: &Path) -> Result<i32, Error>
 {
     let profile = Profile::new(path);
@@ -150,6 +189,7 @@ pub fn package(path: &Path) -> Result<i32, Error>
             Err(e) => return Err(Error::Io(e))
         };
         let mut obj = sd::Object::new();
+        set_type_ext(&mut pk, &profile);
         obj.set("Name", sd::Value::String(package.name.clone()));
         obj.set("Version", sd::Value::String(package.version.clone()));
         obj.set("Description", sd::Value::String(package.description.clone()));
