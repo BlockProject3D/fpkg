@@ -8,7 +8,11 @@ $Test = {
 };
 
 sub TestBegin {
-    copy("target/debug/bpxdbg", "test/bpxdbg");
+    if ($^O == 'MSWin32') {
+        copy("target/debug/bpxdbg.exe", "test/bpxdbg");
+    } else {
+        copy("target/debug/bpxdbg", "test/bpxdbg");
+    }
 }
 
 sub TestEnd {

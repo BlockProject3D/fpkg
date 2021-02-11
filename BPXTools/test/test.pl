@@ -10,8 +10,15 @@ closedir $dir;
 my $cwd = getcwd;
 print "Current working directory: $cwd\n";
 
-if ($^O == 'MSWin32') {
-    $ENV{PERL5SHELL} = "powershell";
+sub CRLFToLF {
+    my $file1 = $_[0];
+    my $file2 = $_[1];
+
+    open my $in, '<:raw:crlf', $file1 or die $!;
+    open my $out, '>:raw', $file2 or die $!;
+    print {$out} $_ while <$in>;
+    close($in);
+    close($out);
 }
 
 sub EnsureEqual {
@@ -35,6 +42,9 @@ sub EnsureEqual {
 
 sub hackFixedStatusCodeSystem {
     my $cmdline = $_[0];
+    if ($^O == 'MSWin32') {
+        $cmdline =~ s/\//\\/g; #Windows CMD hack
+    }
     my $incorrect_res = system($cmdline);
 
     if ($incorrect_res == -1) {
