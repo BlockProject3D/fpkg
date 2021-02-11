@@ -1,2 +1,2 @@
-./BPXTools/test/available/*.stdout eol=lf
-./BPXTools/test/available/*.stderr eol=lf
+*.stdout eol=lf
+*.stderr eol=lf
