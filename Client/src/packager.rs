@@ -87,7 +87,6 @@ fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) ->
                 Ok(vname) => vname,
                 Err(e) => return Err(Error::Io(e))
             };
-            //cfg.push_str("/include");
             if let Err(e) = bpx.pack_vname(path, &vname)
             {
                 return Err(Error::Io(e));

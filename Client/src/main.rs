@@ -57,6 +57,9 @@ mod installer;
 mod luaengine;
 mod luabuilder;
 mod packager;
+mod publisher;
+mod settings;
+
 use std::path::Path;
 use clap::clap_app;
 
@@ -123,6 +126,24 @@ fn handle_package_command() -> i32
     }
 }
 
+fn handle_publish_command(registry: Option<&str>) -> i32
+{
+    match publisher::publish(Path::new("./"), registry)
+    {
+        Ok(v) => return v,
+        Err(e) =>
+        {
+            match e
+            {
+                builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+            }
+            return 1;
+        }
+    }
+}
+
 fn main() {
     let matches = clap_app!(fpkg =>
         (version: "1.0")
@@ -137,6 +158,8 @@ fn main() {
         )
         (@subcommand package =>
             (about: "Run automated packaging using Lua")
+            (@arg publish: --publish "Publish the package.")
+            (@arg registry: --registry -r "Specify the name of the registry to publish to.")
         )
         (@subcommand install =>
             (about: "Install all required dependencies and SDKs")
@@ -156,9 +179,17 @@ fn main() {
             None => std::process::exit(handle_build_command("debug"))
         }
     }
-    if matches.subcommand_matches("package").is_some()
+    if let Some(matches) = matches.subcommand_matches("package")
     {
-        std::process::exit(handle_package_command());
+        let res = handle_package_command();
+        if res != 0
+        {
+            std::process::exit(res);
+        }
+        if matches.is_present("publish")
+        {
+            std::process::exit(handle_publish_command(matches.value_of("registry")));
+        }
     }
     /*if let Some(config) = matches.subcommand_matches("build") {
         let builder = find_builder();
