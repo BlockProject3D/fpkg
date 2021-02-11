@@ -34,7 +34,8 @@ use std::vec::Vec;
 use rlua::FromLua;
 
 use crate::command;
-use crate::builder::Error;
+use crate::common::Error;
+use crate::common::Result;
 use crate::profile::Profile;
 
 pub struct Compiler
@@ -210,7 +211,7 @@ impl LuaFile
         };
     }
 
-    pub fn open(&mut self, path: &Path) -> Result<(), Error>
+    pub fn open(&mut self, path: &Path) -> Result<()>
     {
         match fs::read_to_string(path)
         {
@@ -231,7 +232,7 @@ impl LuaFile
         }
     }
 
-    pub fn open_libs(&mut self) -> Result<(), Error>
+    pub fn open_libs(&mut self) -> Result<()>
     {
         let res = self.state.context(|ctx|
         {
@@ -252,7 +253,7 @@ impl LuaFile
         }
     }
 
-    pub fn read_table(&mut self) -> Result<PackageTable, Error>
+    pub fn read_table(&mut self) -> Result<PackageTable>
     {
         let res: rlua::Result<PackageTable> = self.state.context(|ctx|
         {
@@ -300,7 +301,7 @@ impl LuaFile
         }
     }
 
-    pub fn func_build(&mut self, cfg: &str, profile: &Profile) -> Result<i32, Error>
+    pub fn func_build(&mut self, cfg: &str, profile: &Profile) -> Result<i32>
     {
         let res = self.state.context(|ctx|
         {
@@ -322,7 +323,7 @@ impl LuaFile
         }
     }
 
-    pub fn func_package(&mut self, profile: &Profile) -> Result<Option<Target>, Error>
+    pub fn func_package(&mut self, profile: &Profile) -> Result<Option<Target>>
     {
         let res = self.state.context(|ctx|
         {

@@ -33,7 +33,8 @@ use std::string::String;
 use crate::luaengine::LuaFile;
 use crate::luaengine::PackageTable;
 use crate::profile::Profile;
-use crate::builder::Error;
+use crate::common::Error;
+use crate::common::Result;
 
 fn get_pk_file(profile: &Profile) -> String
 {
@@ -49,9 +50,9 @@ fn get_pk_file(profile: &Profile) -> String
     return s;
 }
 
-pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32, Error>
+pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
 {
-    let profile = Profile::new(path);
+    let profile = Profile::new(path)?;
     if !profile.exists()
     {
         return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")));

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, BlockProject 3D
+// Copyright (c) 2021, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -26,48 +26,13 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::path::Path;
-use std::boxed::Box;
-use std::string::String;
+use std::io;
 
-use crate::common::Result;
-use crate::common::Error;
-use crate::luabuilder::LuaBuilder;
-
-pub trait Builder
+pub enum Error
 {
-    fn can_build(&self, path: &Path) -> bool;
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32>;
+    Io(io::Error),
+    Lua(rlua::Error),
+    Generic(String)
 }
 
-pub fn find_builder(path: &Path) -> Option<Box<dyn Builder>>
-{
-    let mut builders = vec!(
-        Box::new(LuaBuilder {})
-    );
-
-    for i in 0..builders.len()
-    {
-        if builders[i].can_build(path) {
-            return Some(builders.remove(i));
-        }
-    }
-    return None;
-}
-
-pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String>
-{
-    match configs
-    {
-        None => return Ok(String::from(config)),
-        Some(v) =>
-        {
-            let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
-            match cfg
-            {
-                None => return Err(Error::Generic(format!("Could not find configuration named {}", config))),
-                Some(v) => return Ok(String::from(v))
-            }
-        }
-    }
-}
+pub type Result<T> = std::result::Result<T, Error>;

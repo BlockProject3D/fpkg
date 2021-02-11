@@ -32,7 +32,10 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::fs;
 use std::io;
+
 use crate::command;
+use crate::common::Result;
+use crate::common::Error;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -43,28 +46,34 @@ pub struct Profile
     data: HashMap<String, String>
 }
 
-fn read_profile(path: &Path, map: &mut HashMap<String, String>)
+fn read_profile(path: &Path, map: &mut HashMap<String, String>) -> Result<()>
 {
-    let res = fs::read_to_string(path);
-    if res.is_err() {
-        return;
-    }
-    let jres = json::parse(&res.unwrap());
-    if jres.is_err() {
-        return;
-    }
-    let json = jres.unwrap();
+    let res = match fs::read_to_string(path)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(e))
+    };
+    let json = match json::parse(&res)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Generic(format!("Error parsing json: {}", e)))
+    };
     for v in json.entries()
     {
         let (f, f1) = v;
         map.insert(String::from(f), f1.to_string());
     }
+    return Ok(());
 }
 
-fn find_compiler_info() -> io::Result<(String, String)>
+fn find_compiler_info() -> Result<(String, String)>
 {
     println!("Reading compiler information...");
-    let dir = tempfile::tempdir()?;
+    let dir = match tempfile::tempdir()
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(e))
+    };
     let content =
     "
         cmake_minimum_required(VERSION 3.10)
@@ -77,8 +86,15 @@ fn find_compiler_info() -> io::Result<(String, String)>
         FixedMessage(${CMAKE_CXX_COMPILER_ID})
         FixedMessage(${CMAKE_CXX_COMPILER_VERSION})
     ";
-    fs::write(&dir.path().join("CMakeLists.txt"), content)?;
-    let s = command::run_command_with_output("cmake", &["-S", &dir.path().to_string_lossy(), "-B", &dir.path().to_string_lossy()])?;
+    if let Err(e) = fs::write(&dir.path().join("CMakeLists.txt"), content)
+    {
+        return Err(Error::Io(e));
+    }
+    let s = match command::run_command_with_output("cmake", &["-S", &dir.path().to_string_lossy(), "-B", &dir.path().to_string_lossy()])
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(e))
+    };
     let mut compiler = "";
     let mut version = "";
     let lines = s.split("\n");
@@ -103,7 +119,7 @@ fn find_compiler_info() -> io::Result<(String, String)>
     }
     if compiler == "" || version == ""
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Unable to read compiler information"));
+        return Err(Error::Generic(String::from("Unable to read compiler information")));
     }
     println!("Found compiler {} ({})", compiler, version);
     return Ok((String::from(compiler), String::from(version)));
@@ -123,19 +139,19 @@ impl Profile
         return Ok(());
     }
 
-    pub fn new(path: &Path) -> Profile
+    pub fn new(path: &Path) -> Result<Profile>
     {
         let mut map = HashMap::new();
         let p = path.join(Path::new(".fpkg/profile"));
 
         if p.exists() {
-            read_profile(&p, &mut map);
+            read_profile(&p, &mut map)?;
         }
-        return Profile
+        return Ok(Profile
         {
             path: p,
             data: map
-        };
+        });
     }
 
     pub fn exists(&self) -> bool
@@ -148,9 +164,9 @@ impl Profile
         return self.data.get(&String::from(name));
     }
 
-    pub fn regenerate_cross(&mut self, name: &str) -> Result<(), String> //Regenerate profile for cross-compile platform
+    pub fn regenerate_cross(&mut self, name: &str) -> Result<()> //Regenerate profile for cross-compile platform
     {
-        return Err(format!("Platform name {} does not exist", name));
+        return Err(Error::Generic(format!("Platform name {} does not exist", name)));
     }
 
     pub fn write(&self) -> io::Result<()>
@@ -182,7 +198,7 @@ impl Profile
         }
     }
 
-    pub fn regenerate_self(&mut self) -> Result<(), String> //Regenerate profile for current platform
+    pub fn regenerate_self(&mut self) -> Result<()> //Regenerate profile for current platform
     {
         if cfg!(target_os = "windows")
         {
@@ -217,15 +233,9 @@ impl Profile
             self.data.insert(String::from("Arch"), String::from("aarch64"));
         }
         println!("Identified platform as {} {}", self.data.get("Platform").unwrap(), self.data.get("Arch").unwrap());
-        match find_compiler_info()
-        {
-            Ok((name, version)) =>
-            {
-                self.data.insert(String::from("CompilerName"), name);
-                self.data.insert(String::from("CompilerVersion"), version);
-            },
-            Err(e) => return Err(format!("{}", e))
-        }
+        let (name, version) = find_compiler_info()?;
+        self.data.insert(String::from("CompilerName"), name);
+        self.data.insert(String::from("CompilerVersion"), version);
         return Ok(());
     }
 }

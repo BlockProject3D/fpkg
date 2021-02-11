@@ -37,14 +37,16 @@ use regex::Regex;
 
 use crate::profile::Profile;
 use crate::builder;
+use crate::common::Result;
+use crate::common::Error;
 
-fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<(), String>
+fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
 {
-    let mut profile = Profile::new(path);
+    let mut profile = Profile::new(path)?;
 
     match Profile::mkdir(path)
     {
-        Err(e) => return Err(format!("Error creating {}/.fpkg directory {}", path.display(), e)),
+        Err(e) => return Err(Error::Io(e)),
         _ => ()
     }
     if !profile.exists()
@@ -57,10 +59,10 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<(), Stri
     }
     match profile.write()
     {
-        Err(e) => return Err(format!("Error writing profile {}", e)),
+        Err(e) => return Err(Error::Io(e)),
         _ => ()
     }
-    //TODO: Implement dependency/sdk downloader/installer and connect it right here
+    //TODO: Implement dependency/framework downloader/installer and connect it right here
     return Ok(());
 }
 
@@ -85,16 +87,16 @@ fn parse_cmake_lists() -> io::Result<Vec<PathBuf>>
     return Ok(dirs);
 }
 
-fn check_is_valid_project_dir() -> Result<(), String>
+fn check_is_valid_project_dir() -> Result<()>
 {
     let builder = builder::find_builder(Path::new("."));
     if builder.is_none() {
-        return Err(String::from("Project directory does not contain a valid project file"));
+        return Err(Error::Generic(String::from("Project directory does not contain a valid project file")));
     }
     return Ok(());
 }
 
-pub fn install(platform: Option<&str>) -> Result<(), String>
+pub fn install(platform: Option<&str>) -> Result<()>
 {
     check_is_valid_project_dir()?;
     install_sub_directory(Path::new("."), platform)?;
@@ -109,7 +111,7 @@ pub fn install(platform: Option<&str>) -> Result<(), String>
                     install_sub_directory(&path, platform)?;
                 }
             },
-            Err(e) => return Err(format!("Error reading CMakeLists {}", e))
+            Err(e) => return Err(Error::Generic(format!("Error reading CMakeLists {}", e)))
         }
     }
     return Ok(());

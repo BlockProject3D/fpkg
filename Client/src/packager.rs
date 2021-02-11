@@ -36,7 +36,8 @@ use std::fs::metadata;
 use crate::luaengine::LuaFile;
 use crate::luaengine::PackageTable;
 use crate::luaengine::Target;
-use crate::builder::Error;
+use crate::common::Error;
+use crate::common::Result;
 use crate::profile::Profile;
 use crate::builder::check_build_configuration;
 
@@ -74,7 +75,7 @@ fn get_vname(cfg: String, subdir: &str, path: &Path) -> io::Result<String>
     }
 }
 
-fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) -> Result<(), Error>
+fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) -> Result<()>
 {
     if let Some(incs) = &target.includes
     {
@@ -113,7 +114,7 @@ fn pack_lib(bpx: &mut bpxp::Encoder, target: &Target, package: &PackageTable) ->
     return Ok(());
 }
 
-fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<(), Error>
+fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<()>
 {
     if let Some(files) = &target.content
     {
@@ -167,9 +168,9 @@ fn set_type_ext(bpx: &mut bpxp::Encoder, profile: &Profile)
     }
 }
 
-pub fn package(path: &Path) -> Result<i32, Error>
+pub fn package(path: &Path) -> Result<i32>
 {
-    let profile = Profile::new(path);
+    let profile = Profile::new(path)?;
     if !profile.exists()
     {
         return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")));

@@ -58,6 +58,7 @@ mod luaengine;
 mod luabuilder;
 mod packager;
 mod publisher;
+mod common;
 //mod settings;
 
 use std::path::Path;
@@ -69,7 +70,12 @@ fn handle_install_command(platform: Option<&str>) -> i32
     {
         Err(e) =>
         {
-            eprintln!("An error has occured: {}", e);
+            match e
+            {
+                common::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                common::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                common::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+            }
             return 1;
         }
         Ok(()) => return 0
@@ -97,9 +103,9 @@ fn handle_build_command(config: &str) -> i32
                 {
                     match e
                     {
-                        builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
-                        builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
-                        builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+                        common::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                        common::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                        common::Error::Generic(v) => eprintln!("An error has occured: {}", v)
                     }
                     return 1;
                 }
@@ -117,9 +123,9 @@ fn handle_package_command() -> i32
         {
             match e
             {
-                builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
-                builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
-                builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+                common::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                common::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                common::Error::Generic(v) => eprintln!("An error has occured: {}", v)
             }
             return 1;
         }
@@ -135,9 +141,9 @@ fn handle_publish_command(registry: Option<&str>) -> i32
         {
             match e
             {
-                builder::Error::Io(v) => eprintln!("An io error has occured: {}", v),
-                builder::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
-                builder::Error::Generic(v) => eprintln!("An error has occured: {}", v)
+                common::Error::Io(v) => eprintln!("An io error has occured: {}", v),
+                common::Error::Lua(v) => eprintln!("A lua error has occured: {}", v),
+                common::Error::Generic(v) => eprintln!("An error has occured: {}", v)
             }
             return 1;
         }

@@ -30,13 +30,14 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::builder::Builder;
-use crate::builder::Error;
+use crate::common::Error;
+use crate::common::Result;
 use crate::profile::Profile;
 use crate::luaengine::Compiler;
 use crate::luaengine::LuaFile;
 use crate::builder::check_build_configuration;
 
-fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<(), Error>
+fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<()>
 {
     match systems
     {
@@ -53,7 +54,7 @@ fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<(), 
     }
 }
 
-fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<(), Error>
+fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<()>
 {
     match archs
     {
@@ -70,7 +71,7 @@ fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<(), Erro
     }
 }
 
-fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<(), Error>
+fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<()>
 {
     if let Some(minver) = &compiler.minimum_version
     {
@@ -101,7 +102,7 @@ fn check_compiler_version(version: &String, compiler: &Compiler) -> Result<(), E
     return Ok(());
 }
 
-fn check_compiler(profile: &Profile, compilers: &Option<Vec<Compiler>>) -> Result<(), Error>
+fn check_compiler(profile: &Profile, compilers: &Option<Vec<Compiler>>) -> Result<()>
 {
     match compilers
     {
@@ -138,9 +139,9 @@ impl Builder for LuaBuilder
         return lua.has_func_build();
     }
 
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32, Error>
+    fn run_build(&self, config: &str, path: &Path) -> Result<i32>
     {
-        let profile = Profile::new(path);
+        let profile = Profile::new(path)?;
         if !profile.exists()
         {
             return Err(Error::Generic(String::from("Unable to load project profile; did you forget to run fpkg install?")))
