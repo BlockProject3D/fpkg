@@ -29,10 +29,12 @@
 use std::path::Path;
 use std::path::PathBuf;
 use std::string::String;
+use regex::Regex;
 
 use crate::luaengine::LuaFile;
 use crate::luaengine::PackageTable;
 use crate::profile::Profile;
+use crate::settings::Settings;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
@@ -51,8 +53,25 @@ fn get_pk_file(profile: &Profile) -> String
     return s;
 }
 
+fn gitlab_check_package(package: &PackageTable) -> Result<()>
+{
+    let re = Regex::new(r"^\A\d+\.\d+\.\d+\z$").unwrap();
+    let re1 = Regex::new(r"^([a-z]|[A-Z]|\d|\.|-|_)+$").unwrap();
+
+    if !re.is_match(&package.version)
+    {
+        return Err(Error::Generic(ErrorDomain::Publisher, format!("The package version string {} is not supported by GitLab Generic Packages", &package.version)));
+    }
+    if !re1.is_match(&package.name)
+    {
+        return Err(Error::Generic(ErrorDomain::Publisher, format!("The package name string {} is not supported by GitLab Generic Packages", &package.name)));
+    }
+    return Ok(());
+}
+
 pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
 {
+    let settings = Settings::new()?;
     let profile = Profile::new(path)?;
     if !profile.exists()
     {
@@ -64,6 +83,7 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     lua.open(&p)?;
     let package = lua.read_table()?;
     let file_name = get_pk_file(&profile);
-    
+    let registry_info = settings.get_registry(registry)?;
+
     return Ok(0);
 }

@@ -30,25 +30,33 @@ use dirs::config_dir;
 use std::collections::HashMap;
 use std::path::Path;
 use std::fs;
+use json::JsonValue;
 
 use crate::common::Error;
 use crate::common::Result;
 use crate::common::ErrorDomain;
 
+#[cfg(unix)]
+const PATH_LOCAL_REG: &str = "local:///opt/fpkg/";
+
+#[cfg(windows)]
+const PATH_LOCAL_REG: &str = "local://C:/fpkg/";
+
 pub struct RegistryInfo
 {
     base_url: String,
-    access_token: String
+    access_token: Option<String>
 }
 
 pub struct Settings
 {
     default_registry: String,
-    registries: HashMap<String, String>
+    registries: HashMap<String, RegistryInfo>
 }
 
-fn read_settings(path: &Path) -> Result<Settings, Error>
+fn read_settings(path: &Path) -> Result<Settings>
 {
+    let mut map = HashMap::new();
     let res = match fs::read_to_string(path)
     {
         Ok(v) => v,
@@ -59,16 +67,69 @@ fn read_settings(path: &Path) -> Result<Settings, Error>
         Ok(v) => v,
         Err(e) => return Err(Error::Generic(ErrorDomain::Settings, format!("Error parsing json: {}", e)))
     };
-    for v in json.entries()
+    match &json["Registries"]
     {
-        let (f, f1) = v;
-        map.insert(String::from(f), f1.to_string());
+        JsonValue::Object(v) =>
+        {
+            for entry in v.iter()
+            {
+                let (key, val) = entry;
+                let url = match val["BaseUrl"].as_str()
+                {
+                    Some(v) => v,
+                    None => return Err(Error::Generic(ErrorDomain::Settings, String::from("Invalid type for 'BaseUrl' key")))
+                };
+                let token = match val["AccessToken"].as_str()
+                {
+                    Some(v) => Some(String::from(v)),
+                    None => None
+                };
+                map.insert(String::from(key), RegistryInfo
+                {
+                    base_url: String::from(url),
+                    access_token: token
+                });
+            }
+        },
+        _ => return Err(Error::Generic(ErrorDomain::Settings, String::from("Invalid type for 'Registries' key")))
+    };
+    let default = match &json["DefaultRegistry"]
+    {
+        JsonValue::Null =>
+        {
+            let mut val = None;
+            for (k, _) in &map
+            {
+                val = Some(String::from(k));
+                break;
+            }
+            val
+        }
+        JsonValue::String(v) =>
+        {
+            let mut val = None;
+            if map.contains_key(v)
+            {
+                val = Some(String::from(v));
+            }
+            val
+        },
+        _ => return Err(Error::Generic(ErrorDomain::Settings, String::from("Invalid type for 'DefaultRegistry' key")))
+    };
+    if default.is_none()
+    {
+        return Err(Error::Generic(ErrorDomain::Settings, String::from("Default registry does not exist")));
     }
+    return Ok(Settings
+    {
+        default_registry: default.unwrap(),
+        registries: map
+    });
 }
 
 impl Settings
 {
-    pub fn new() -> Result<Settings, Error>
+    pub fn new() -> Result<Settings>
     {
         let mut path = match config_dir()
         {
@@ -76,6 +137,36 @@ impl Settings
             None => return Err(Error::Generic(ErrorDomain::Settings, String::from("Unable to obtain a valid config directory, is your system sane?!")))
         };
         path.push(Path::new("fpkg-settings.json"));
+        if path.exists()
+        {
+            return read_settings(&path);
+        }
+        let mut map = HashMap::new();
+        map.insert(String::from("LocalSystem"), RegistryInfo
+        {
+            base_url: String::from(PATH_LOCAL_REG),
+            access_token: None
+        });
+        return Ok(Settings
+        {
+            default_registry: String::from("LocalSystem"),
+            registries: map
+        });
+    }
 
+    pub fn get_registry(&self, name: Option<&str>) -> Result<&RegistryInfo>
+    {
+        match name
+        {
+            None => return Ok(&self.registries[&self.default_registry]),
+            Some(v) =>
+            {
+                match &self.registries.get(&String::from(v))
+                {
+                    None => return Err(Error::Generic(ErrorDomain::Settings, format!("Registry {} does not exist", v))),
+                    Some(v) => return Ok(v)
+                };
+            }
+        };
     }
 }
