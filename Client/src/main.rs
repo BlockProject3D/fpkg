@@ -60,6 +60,7 @@ mod packager;
 mod publisher;
 mod common;
 mod settings;
+mod registry;
 
 use std::path::Path;
 use clap::clap_app;

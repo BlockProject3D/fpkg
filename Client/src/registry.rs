@@ -28,6 +28,7 @@
 
 use std::collections::HashMap;
 use std::boxed::Box;
+use std::path::Path;
 
 use crate::common::Result;
 use crate::common::Error;
@@ -50,26 +51,26 @@ fn get_scheme(base_url: &str) -> Result<&str>
 {
     return match base_url.find(':')
     {
-        Some(i) => Ok(base_url[0..i]),
+        Some(i) => Ok(&base_url[0..i]),
         None => Err(Error::Generic(ErrorDomain::Settings, String::from("The specified registry URL does not have a valid scheme")))
     }
 }
 
 fn get_provider_by_scheme(scheme: &str) -> Result<Box<dyn RegistryProvider>>
 {
-    let map: HashMap<&'static str, Box<dyn RegistryProvider>> = HashMap::new();
+    let mut map: HashMap<&str, Box<dyn RegistryProvider>> = HashMap::new();
 
     if map.contains_key(&scheme)
     {
-        return Ok(map[&scheme]);
+        let obj = map.remove(&scheme).unwrap();
+        return Ok(obj);
     }
     return Err(Error::Generic(ErrorDomain::Settings, format!("Unknown registry URL scheme: {}", &scheme)));
 }
 
-pub fn open_package_registry(info: &RegistryInfo) -> Result<()>
+pub fn open_package_registry(info: &RegistryInfo) -> Result<Box<dyn PackageRegistry>>
 {
-    let scheme = get_scheme(&info.base_url);
-    let provider = get_provider_by_scheme(&scheme);
-
-    return Ok(());
+    let scheme = get_scheme(&info.base_url)?;
+    let provider = get_provider_by_scheme(&scheme)?;
+    return provider.open(&info);
 }

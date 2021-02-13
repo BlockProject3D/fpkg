@@ -44,8 +44,8 @@ const PATH_LOCAL_REG: &str = "local://C:/fpkg/";
 
 pub struct RegistryInfo
 {
-    base_url: String,
-    access_token: Option<String>
+    pub base_url: String,
+    pub access_token: Option<String>
 }
 
 pub struct Settings
