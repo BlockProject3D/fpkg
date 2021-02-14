@@ -35,6 +35,7 @@ use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::luaengine::PackageTable;
 use crate::settings::RegistryInfo;
+use crate::gitlabregistry::GitLabRegistryProvider;
 
 pub trait PackageRegistry
 {
@@ -60,6 +61,8 @@ fn get_provider_by_scheme(scheme: &str) -> Result<Box<dyn RegistryProvider>>
 {
     let mut map: HashMap<&str, Box<dyn RegistryProvider>> = HashMap::new();
 
+    map.insert("gitlab", GitLabRegistryProvider::new());
+    map.insert("gitlab-priv", GitLabRegistryProvider::new());
     if map.contains_key(&scheme)
     {
         let obj = map.remove(&scheme).unwrap();

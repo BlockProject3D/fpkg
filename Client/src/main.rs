@@ -61,6 +61,7 @@ mod publisher;
 mod common;
 mod settings;
 mod registry;
+mod gitlabregistry;
 
 use std::path::Path;
 use clap::clap_app;
