@@ -135,7 +135,7 @@ impl PackageRegistry for GitLabRegistry
             };
             match mgr.upload(&package.name, &package.version, &file_name, f)
             {
-                Ok(()) => (),
+                Ok(()) => return Ok(()),
                 Err(e) => return Err(Error::Generic(ErrorDomain::Publisher, format!("A HTTP request has failed: {}", e)))
             }
         }
