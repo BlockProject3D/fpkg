@@ -36,9 +36,7 @@ pub struct PackageFile
 {
     pub id: u64,
     pub file_name: String,
-    pub size: u64,
-    pub file_md5: String,
-    pub file_sha1: String
+    pub size: u64
 }
 
 #[derive(Deserialize)]
