@@ -28,21 +28,32 @@
 
 use std::string::String;
 use std::path::Path;
-use std::path::PathBuf;
-use std::fs::File;
-use std::io::BufReader;
-use std::io;
-use std::io::BufRead;
-use regex::Regex;
 
 use crate::profile::Profile;
 use crate::builder;
 use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
+use crate::luaengine::LuaFile;
 
-fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
+fn run_lua_engine(path: &Path, profile: &Profile) -> Result<Option<Vec<String>>>
 {
+    let mut file = LuaFile::new();
+    file.open_libs()?;
+    file.open(&path)?;
+    if file.has_func_install()
+    {
+        return file.func_install(&profile);
+    }
+    else
+    {
+        return Ok(None);
+    }
+}
+
+fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
+{
+    let mut res = Vec::new();
     let mut profile = Profile::new(path)?;
 
     match Profile::mkdir(path)
@@ -63,34 +74,24 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<()>
         Err(e) => return Err(Error::Io(ErrorDomain::Installer, e)),
         _ => ()
     }
-    //TODO: Implement dependency/framework downloader/installer and connect it right here
-    return Ok(());
-}
-
-fn parse_cmake_lists() -> io::Result<Vec<PathBuf>>
-{
-    let mut dirs: Vec<PathBuf> = Vec::new();
-    let file = File::open("./CMakeLists.txt")?;
-    let reader = BufReader::new(file);
-
-    for line1 in reader.lines()
+    let path = Path::new(path).join("fpkg.lua");
+    if path.exists()
     {
-        let line = line1?;
-        let re = Regex::new(r"add_subdirectory\(([^)]+)\)").unwrap();
-        if re.is_match(&line)
+        if let Some(vc) = run_lua_engine(&path, &profile)?
         {
-            for group in re.captures_iter(&line)
+            for path in vc
             {
-                dirs.push(Path::new(".").join(&group[1]));
+                res.push(path);
             }
         }
     }
-    return Ok(dirs);
+    //TODO: Implement dependency/framework downloader/installer and connect it right here
+    return Ok(res);
 }
 
-fn check_is_valid_project_dir() -> Result<()>
+fn check_is_valid_project_dir(path: &Path) -> Result<()>
 {
-    let builder = builder::find_builder(Path::new("."));
+    let builder = builder::find_builder(&path);
     if builder.is_none() {
         return Err(Error::Generic(ErrorDomain::Installer, String::from("Project directory does not contain a valid project file")));
     }
@@ -99,20 +100,15 @@ fn check_is_valid_project_dir() -> Result<()>
 
 pub fn install(platform: Option<&str>) -> Result<()>
 {
-    check_is_valid_project_dir()?;
-    install_sub_directory(Path::new("."), platform)?;
-    if Path::new("./CMakeLists.txt").exists()
+    let mut directories: Vec<String> = Vec::new();
+    directories.push(String::from("."));
+    while let Some(dir) = directories.pop()
     {
-        match parse_cmake_lists()
+        check_is_valid_project_dir(Path::new(&dir))?;
+        let subdirs = install_sub_directory(Path::new(&dir), platform)?;
+        for v in subdirs
         {
-            Ok(v) =>
-            {
-                for path in v
-                {
-                    install_sub_directory(&path, platform)?;
-                }
-            },
-            Err(e) => return Err(Error::Generic(ErrorDomain::Installer, format!("Error reading CMakeLists {}", e)))
+            directories.push(v);
         }
     }
     return Ok(());

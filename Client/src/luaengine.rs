@@ -289,6 +289,19 @@ impl LuaFile
         }
     }
 
+    pub fn has_func_install(&self) -> bool
+    {
+        let res = self.state.context(|ctx|
+        {
+            return ctx.globals().contains_key("Install");
+        });
+        match res
+        {
+            Ok(v) => return v,
+            Err(_) => return false
+        }
+    }
+
     pub fn has_func_build(&self) -> bool
     {
         let res = self.state.context(|ctx|
@@ -299,6 +312,28 @@ impl LuaFile
         {
             Ok(v) => return v,
             Err(_) => return false
+        }
+    }
+
+    pub fn func_install(&mut self, profile: &Profile) -> Result<Option<Vec<String>>>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let mut tbl = ctx.create_table()?;
+            profile.fill_table(&mut tbl)?;
+            let func: rlua::Function = ctx.globals().get("Install")?;
+            let res: Option<Vec<String>> = func.call(tbl)?;
+
+            match res
+            {
+                Some(v) => return Ok(Some(v)),
+                None => return Ok(None)
+            }
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
         }
     }
 
