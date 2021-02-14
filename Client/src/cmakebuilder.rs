@@ -1,4 +1,4 @@
-// Copyright (c) 2020, BlockProject 3D
+// Copyright (c) 2021, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -27,50 +27,45 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use std::path::Path;
-use std::boxed::Box;
 use std::string::String;
 
+use crate::command::run_command;
 use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
-use crate::luabuilder::LuaBuilder;
-use crate::cmakebuilder::CMakeBuilder;
+use crate::builder::Builder;
+use crate::builder::check_build_configuration;
 
-pub trait Builder
+pub struct CMakeBuilder {}
+
+impl Builder for CMakeBuilder
 {
-    fn can_build(&self, path: &Path) -> bool;
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32>;
-}
-
-pub fn find_builder(path: &Path) -> Option<Box<dyn Builder>>
-{
-    let mut builders: Vec<Box<dyn Builder>> = vec!(
-        Box::new(LuaBuilder {}),
-        Box::new(CMakeBuilder {})
-    );
-
-    for i in 0..builders.len()
+    fn can_build(&self, path: &Path) -> bool
     {
-        if builders[i].can_build(path) {
-            return Some(builders.remove(i));
-        }
+        return path.join("CMakeLists.txt").exists();
     }
-    return None;
-}
 
-pub fn check_build_configuration(config: &str, configs: &Option<Vec<String>>) -> Result<String>
-{
-    match configs
+    fn run_build(&self, configuration: &str, path: &Path) -> Result<i32>
     {
-        None => return Ok(String::from(config)),
-        Some(v) =>
+        let mut builddir = String::from("build-");
+        let mut buildtype = String::from("-DCMAKE_BUILD_TYPE=");
+        let config = check_build_configuration(&configuration, &Some(vec!(String::from("Debug"), String::from("Release"))))?;
+
+        builddir.push_str(&config.to_lowercase());
+        buildtype.push_str(&config);
+        //command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+        match run_command("cmake", &["-S", &path.to_string_lossy(), "-B", &builddir, &buildtype])
         {
-            let cfg = v.iter().find(|v| v == &config || v.to_lowercase() == config);
-            match cfg
+            Ok(status) =>
             {
-                None => return Err(Error::Generic(ErrorDomain::Builder, format!("Could not find configuration named {}", config))),
-                Some(v) => return Ok(String::from(v))
+                if let Some(v) = status.code()
+                {
+                    return Ok(v);
+                }
+                eprintln!("The target application has crashed!");
+                return Ok(11);
             }
-        }
+            Err(e) => return Err(Error::Io(ErrorDomain::Builder, e))
+        };
     }
 }

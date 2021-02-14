@@ -62,6 +62,7 @@ mod common;
 mod settings;
 mod registry;
 mod gitlabregistry;
+mod cmakebuilder;
 
 use std::path::Path;
 use clap::clap_app;
