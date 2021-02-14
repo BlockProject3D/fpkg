@@ -53,8 +53,23 @@ impl Builder for CMakeBuilder
 
         builddir.push_str(&config.to_lowercase());
         buildtype.push_str(&config);
-        //command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
         match run_command("cmake", &["-S", &path.to_string_lossy(), "-B", &builddir, &buildtype])
+        {
+            Ok(status) =>
+            {
+                if !status.success()
+                {
+                    if let Some(v) = status.code()
+                    {
+                        return Ok(v);
+                    }
+                    eprintln!("The target application has crashed!");
+                    return Ok(11);    
+                }
+            }
+            Err(e) => return Err(Error::Io(ErrorDomain::Builder, e))
+        };
+        match run_command("cmake", &["--build", &builddir, "--config", &config])
         {
             Ok(status) =>
             {
