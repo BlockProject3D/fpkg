@@ -167,8 +167,8 @@ impl RegistryProvider for GitLabRegistryProvider
             {
                 return Ok(Box::new(GitLabRegistry
                 {
-                    list: glgp::list::PackageList::new_authenticated(String::from(&info.base_url[16..]), v.clone()),
-                    manager: Some(glgp::manager::PackageManager::new(String::from(&info.base_url[16..]), v.clone()))
+                    list: glgp::list::PackageList::new_authenticated(String::from(&info.base_url[15..]), v.clone()),
+                    manager: Some(glgp::manager::PackageManager::new(String::from(&info.base_url[15..]), v.clone()))
                 }));
             }
             return Err(Error::Generic(ErrorDomain::Publisher, String::from("The registry does not have a valid access token!")));
@@ -179,15 +179,15 @@ impl RegistryProvider for GitLabRegistryProvider
             {
                 return Ok(Box::new(GitLabRegistry
                 {
-                    list: glgp::list::PackageList::new_guest(String::from(&info.base_url[16..])),
-                    manager: Some(glgp::manager::PackageManager::new(String::from(&info.base_url[16..]), v.clone()))
+                    list: glgp::list::PackageList::new_guest(String::from(&info.base_url[9..])),
+                    manager: Some(glgp::manager::PackageManager::new(String::from(&info.base_url[9..]), v.clone()))
                 }));
             }
             else
             {
                 return Ok(Box::new(GitLabRegistry
                 {
-                    list: glgp::list::PackageList::new_guest(String::from(&info.base_url[16..])),
+                    list: glgp::list::PackageList::new_guest(String::from(&info.base_url[9..])),
                     manager: None
                 }));
             }
