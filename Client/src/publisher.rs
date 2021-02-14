@@ -66,6 +66,7 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     lua.open(&p)?;
     let package = lua.read_table()?;
     let file_name = get_pk_file(&profile);
+    println!("Uploading package {} {} - {}...", &package.name, &package.version, &file_name);
     let registry_info = settings.get_registry(registry)?;
     let mut registry = open_package_registry(&registry_info)?;
     registry.ensure_valid_package(&package)?;
