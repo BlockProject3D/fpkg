@@ -39,8 +39,8 @@ use crate::gitlabregistry::GitLabRegistryProvider;
 
 pub trait PackageRegistry
 {
-    fn ensure_valid_package(&self, package: &PackageTable) -> Result<()>;
-    fn publish(&self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>;
+    fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>;
+    fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>;
 }
 
 pub trait RegistryProvider
