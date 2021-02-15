@@ -37,6 +37,7 @@ use crate::command;
 use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
+use crate::common::read_property_map;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -48,26 +49,6 @@ pub struct Profile
     path: PathBuf,
     data: HashMap<String, String>,
     platform: String
-}
-
-fn read_profile(path: &Path, map: &mut HashMap<String, String>) -> Result<()>
-{
-    let res = match fs::read_to_string(path)
-    {
-        Ok(v) => v,
-        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
-    };
-    let json = match json::parse(&res)
-    {
-        Ok(v) => v,
-        Err(e) => return Err(Error::Generic(ErrorDomain::Profile, format!("Error parsing json: {}", e)))
-    };
-    for v in json.entries()
-    {
-        let (f, f1) = v;
-        map.insert(String::from(f), f1.to_string());
-    }
-    return Ok(());
 }
 
 fn find_compiler_info() -> Result<(String, String)>
@@ -133,14 +114,13 @@ impl Profile
 {
     fn mkdir(&self) -> io::Result<()>
     {
-        let p = self.path.join(Path::new(".fpkg"));
-        let toolchain = p.join(Path::new(&self.platform));
+        let toolchain = self.path.join(Path::new(&self.platform));
 
-        if !p.exists()
+        if !self.path.exists()
         {
-            fs::create_dir(&p)?;
+            fs::create_dir(&self.path)?;
             #[cfg(windows)]
-            fileapi::SetFileAttributesA(&p, fileapi::FILE_ATTRIBUTE_HIDDEN);
+            fileapi::SetFileAttributesA(&self.path, fileapi::FILE_ATTRIBUTE_HIDDEN);
         }
         if !toolchain.exists()
         {
@@ -155,7 +135,7 @@ impl Profile
         let p = path.join(Path::new(".fpkg/host/profile"));
 
         if p.exists() {
-            read_profile(&p, &mut map)?;
+            read_property_map(&p, &mut map)?;
         }
         return Ok(Profile
         {
@@ -219,7 +199,7 @@ impl Profile
                 self.platform = String::from(name);
                 let path = self.get_platform_path().join("profile");
                 let mut map = HashMap::new();
-                read_profile(&path, &mut map)?;
+                read_property_map(&path, &mut map)?;
                 self.data = map;
                 return Ok(());
             }

@@ -26,6 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use std::path::Path;
+use std::collections::HashMap;
+use std::fs;
 use std::io;
 
 pub enum ErrorDomain
@@ -48,3 +51,23 @@ pub enum Error
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub fn read_property_map(path: &Path, map: &mut HashMap<String, String>) -> Result<()>
+{
+    let res = match fs::read_to_string(path)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
+    };
+    let json = match json::parse(&res)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Generic(ErrorDomain::Profile, format!("Error parsing json: {}", e)))
+    };
+    for v in json.entries()
+    {
+        let (f, f1) = v;
+        map.insert(String::from(f), f1.to_string());
+    }
+    return Ok(());
+}

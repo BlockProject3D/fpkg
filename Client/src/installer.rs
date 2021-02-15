@@ -29,6 +29,7 @@
 use std::string::String;
 use std::path::Path;
 use std::fs;
+use std::collections::HashMap;
 
 use crate::profile::Profile;
 use crate::builder;
@@ -40,6 +41,7 @@ use crate::luaengine::Dependency;
 use crate::settings::Settings;
 use crate::settings::RegistryInfo;
 use crate::registry::open_package_registry;
+use crate::common::read_property_map;
 
 fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<String>>>
 {
@@ -117,15 +119,50 @@ fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<Regi
                         }
                         registry.download(&folder, &pkg, &file_name)?;
                         //TODO: Add unpack system here
+                        println!("Installed dependency {} - {}", &dep.name, &dep.version);
                         return Ok(());
                     }
                 }
-                return Err(Error::Generic(ErrorDomain::Installer, format!("The dependency ({} - {}) is not compatible with your system", &dep.name, &dep.version)));
+                return Err(Error::Generic(ErrorDomain::Installer, format!("The dependency {} - {} is not compatible with your system", &dep.name, &dep.version)));
             }
             continue;
         }
     }
     return Err(Error::Generic(ErrorDomain::Installer, format!("Could not find dependency {} in any registry", &dep.name)));
+}
+
+fn is_dependency_installed(dep: &Dependency, profile: &Profile) -> Result<bool>
+{
+    let package_dir = profile.get_platform_path().join(Path::new(&dep.name));
+    let path = package_dir.join("package-info.json");
+    let mut map = HashMap::new();
+    if !path.exists()
+    {
+        return Ok(false);
+    }
+    read_property_map(&path, &mut map)?;
+    if &map["Platform"] != profile.get("Platform").unwrap()
+        || &map["Arch"] != profile.get("Arch").unwrap()
+        || &map["CompilerName"] != profile.get("CompilerName").unwrap()
+        || &map["Name"] != &dep.name
+    {
+        //Package is corrupted clear directory
+        if let Err(e) = fs::remove_dir_all(&package_dir)
+        {
+            return Err(Error::Io(ErrorDomain::Installer, e));
+        }
+        return Ok(false);
+    }
+    if dep.version != "latest" && &map["Version"] != &dep.version
+    {
+        //Package is corrupted clear directory
+        if let Err(e) = fs::remove_dir_all(&package_dir)
+        {
+            return Err(Error::Io(ErrorDomain::Installer, e));
+        }
+        return Ok(false);
+    }
+    return Ok(true);
 }
 
 fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
@@ -135,7 +172,10 @@ fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec
     {
         for dep in deps
         {
-            install_dependency(&dep, &profile, &registries)?;
+            if !is_dependency_installed(&dep, &profile)?
+            {
+                install_dependency(&dep, &profile, &registries)?;
+            }
         }
     }
     return Ok(());
@@ -159,7 +199,6 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
         let mut file = LuaFile::new();
         file.open_libs()?;
         file.open(&path)?;
-        //TODO: Implement dependency/framework downloader/installer and connect it right here
         install_depenedencies(&mut file, &profile, &registries)?;
         if let Some(vc) = run_lua_install(&mut file, &profile)?
         {
