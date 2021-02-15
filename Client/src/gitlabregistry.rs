@@ -41,7 +41,7 @@ use crate::common::ErrorDomain;
 use crate::settings::RegistryInfo;
 use crate::registry::PackageRegistry;
 use crate::registry::RegistryProvider;
-use crate::luaengine::PackageTable;
+use crate::registry::Package;
 
 struct GitLabRegistry
 {
@@ -145,7 +145,7 @@ fn download_file(target: &Path, src: &mut dyn Read) -> io::Result<()>
 
 impl PackageRegistry for GitLabRegistry
 {
-    fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>
+    fn ensure_valid_package(&mut self, package: &Package) -> Result<()>
     {
         let re = Regex::new(r"^\A\d+\.\d+\.\d+\z$").unwrap();
         let re1 = Regex::new(r"^([a-z]|[A-Z]|\d|\.|-|_)+$").unwrap();
@@ -161,7 +161,7 @@ impl PackageRegistry for GitLabRegistry
         return Ok(());
     }
 
-    fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>
+    fn publish(&mut self, package: &Package, file_name: &str, file: &Path) -> Result<()>
     {
         if let Some(pkg) = self.find_package(&package.name, &package.version)?
         {
@@ -186,7 +186,7 @@ impl PackageRegistry for GitLabRegistry
         return Err(Error::Generic(ErrorDomain::Registry, String::from("The registry does not have a valid access token!")))
     }
 
-    fn find_latest(&mut self, name: &str) -> Result<Option<Vec<String>>>
+    fn find_latest(&mut self, name: &str) -> Result<Option<Package>>
     {
         let data = match self.list.search(1, name)
         {
@@ -197,30 +197,40 @@ impl PackageRegistry for GitLabRegistry
         {
             return Ok(None);
         }
-        let fuck = self.list_file_names(&data[0])?;
-        return Ok(Some(fuck));
+        let files = self.list_file_names(&data[0])?;
+        return Ok(Some(Package
+        {
+            name: data[0].name.clone(),
+            version: data[0].version.clone(),
+            files: files
+        }));
     }
 
-    fn find(&mut self, name: &str, version: &str) -> Result<Option<Vec<String>>>
+    fn find(&mut self, name: &str, version: &str) -> Result<Option<Package>>
     {
         let package = self.find_package(&name, &version)?;
         if let Some(pkg) = package
         {
-            let fuck = self.list_file_names(&pkg)?;
-            return Ok(Some(fuck));
+            let files = self.list_file_names(&pkg)?;
+            return Ok(Some(Package
+            {
+                name: pkg.name.clone(),
+                version: pkg.version.clone(),
+                files: files
+            }));
         }
         return Ok(None);
     }
 
-    fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>
+    fn download(&mut self, target_folder: &Path, package: &Package, file_name: &str) -> Result<()>
     {
         if let Some(mgr) = &mut self.manager
         {
             let pkg = glgp::types::PackageEntry
             {
                 id: 0,
-                version: String::from(version),
-                name: String::from(name)
+                version: package.version.clone(),
+                name: package.name.clone()
             };
             let file = glgp::types::PackageFile
             {

@@ -37,6 +37,7 @@ use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::registry::open_package_registry;
+use crate::registry::Package;
 
 fn get_pk_file(profile: &Profile) -> String
 {
@@ -65,11 +66,12 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     lua.open_libs()?;
     lua.open(&p)?;
     let package = lua.read_table()?;
+    let pkg = Package::new(&package.name, &package.version);
     let file_name = get_pk_file(&profile);
     println!("Uploading package {} {} - {}...", &package.name, &package.version, &file_name);
     let registry_info = settings.get_registry(registry)?;
     let mut registry = open_package_registry(&registry_info)?;
-    registry.ensure_valid_package(&package)?;
-    registry.publish(&package, &file_name, Path::new(&file_name))?;
+    registry.ensure_valid_package(&pkg)?;
+    registry.publish(&pkg, &file_name, Path::new(&file_name))?;
     return Ok(0);
 }

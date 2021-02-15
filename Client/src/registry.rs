@@ -35,17 +35,36 @@ use std::vec::Vec;
 use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
-use crate::luaengine::PackageTable;
 use crate::settings::RegistryInfo;
 use crate::gitlabregistry::GitLabRegistryProvider;
 
+pub struct Package
+{
+    pub version: String,
+    pub name: String,
+    pub files: Vec<String>
+}
+
+impl Package
+{
+    pub fn new(name: &str, version: &str) -> Package
+    {
+        return Package
+        {
+            name: String::from(name),
+            version: String::from(version),
+            files: Vec::new()
+        };
+    }
+}
+
 pub trait PackageRegistry
 {
-    fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>;
-    fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>;
-    fn find_latest(&mut self, name: &str) -> Result<Option<Vec<String>>>;
-    fn find(&mut self, name: &str, version: &str) -> Result<Option<Vec<String>>>;
-    fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>;
+    fn ensure_valid_package(&mut self, package: &Package) -> Result<()>;
+    fn publish(&mut self, package: &Package, file_name: &str, file: &Path) -> Result<()>;
+    fn find_latest(&mut self, name: &str) -> Result<Option<Package>>;
+    fn find(&mut self, name: &str, version: &str) -> Result<Option<Package>>;
+    fn download(&mut self, target_folder: &Path, package: &Package, file_name: &str) -> Result<()>;
 }
 
 pub trait RegistryProvider
