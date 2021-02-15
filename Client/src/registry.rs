@@ -43,8 +43,8 @@ pub trait PackageRegistry
 {
     fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>;
     fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>;
-    fn find_latest(&mut self, name: &str) -> Result<Vec<String>>;
-    fn find(&mut self, name: &str, version: &str) -> Result<Vec<String>>;
+    fn find_latest(&mut self, name: &str) -> Result<Option<Vec<String>>>;
+    fn find(&mut self, name: &str, version: &str) -> Result<Option<Vec<String>>>;
     fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>;
 }
 

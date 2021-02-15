@@ -186,7 +186,7 @@ impl PackageRegistry for GitLabRegistry
         return Err(Error::Generic(ErrorDomain::Registry, String::from("The registry does not have a valid access token!")))
     }
 
-    fn find_latest(&mut self, name: &str) -> Result<Vec<String>>
+    fn find_latest(&mut self, name: &str) -> Result<Option<Vec<String>>>
     {
         let data = match self.list.search(1, name)
         {
@@ -195,19 +195,21 @@ impl PackageRegistry for GitLabRegistry
         };
         if data.len() == 0
         {
-            return Err(Error::Generic(ErrorDomain::Registry, format!("Could not find a package named {}", &name)));
+            return Ok(None);
         }
-        return self.list_file_names(&data[0]);
+        let fuck = self.list_file_names(&data[0])?;
+        return Ok(Some(fuck));
     }
 
-    fn find(&mut self, name: &str, version: &str) -> Result<Vec<String>>
+    fn find(&mut self, name: &str, version: &str) -> Result<Option<Vec<String>>>
     {
         let package = self.find_package(&name, &version)?;
         if let Some(pkg) = package
         {
-            return self.list_file_names(&pkg);
+            let fuck = self.list_file_names(&pkg)?;
+            return Ok(Some(fuck));
         }
-        return Err(Error::Generic(ErrorDomain::Registry, format!("Could not find a package named {}", &name)));
+        return Ok(None);
     }
 
     fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>
