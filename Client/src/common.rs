@@ -36,7 +36,8 @@ pub enum ErrorDomain
     Packager,
     Publisher,
     LuaEngine,
-    Settings
+    Settings,
+    Registry
 }
 
 pub enum Error
