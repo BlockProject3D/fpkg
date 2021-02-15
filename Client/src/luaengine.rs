@@ -84,11 +84,15 @@ impl FromLua<'_> for Dependency
         if let rlua::Value::Table(table) = val
         {
             let name: String = table.get("Name")?;
-            let version: String = table.get("Version")?;
+            let version: Option<String> = table.get("Version")?;
             return Ok(Dependency
             {
                 name: name,
-                version: version
+                version: match version
+                {
+                    Some(v) => v,
+                    None => String::from("latest")
+                }
             });
         }
         return Err(rlua::Error::FromLuaConversionError
