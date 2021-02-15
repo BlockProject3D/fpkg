@@ -31,6 +31,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::fs;
 use json::JsonValue;
+use std::vec::Vec;
 
 use crate::common::Error;
 use crate::common::Result;
@@ -42,6 +43,7 @@ const PATH_LOCAL_REG: &str = "local:///opt/fpkg/";
 #[cfg(windows)]
 const PATH_LOCAL_REG: &str = "local://C:/fpkg/";
 
+#[derive(Clone)]
 pub struct RegistryInfo
 {
     pub base_url: String,
@@ -152,6 +154,17 @@ impl Settings
             default_registry: String::from("LocalSystem"),
             registries: map
         });
+    }
+
+    pub fn get_registries(&self) -> Vec<RegistryInfo>
+    {
+        let mut res = Vec::new();
+
+        for (_, v) in &self.registries
+        {
+            res.push(v.clone());
+        }
+        return res;
     }
 
     pub fn get_registry(&self, name: Option<&str>) -> Result<&RegistryInfo>
