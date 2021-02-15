@@ -147,6 +147,7 @@ fn build_package_info(obj: &sd::Object) -> Result<json::object::Object>
             sd::Value::String(s) => j.insert("Description", json::JsonValue::String(s.clone())),
             _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Description'")))
         };
+        return Ok(j);
     }
     return Err(Error::Generic(ErrorDomain::Installer, String::from("Missing some required properties in BPX package")));
 }
