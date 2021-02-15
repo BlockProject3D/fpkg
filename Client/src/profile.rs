@@ -159,7 +159,7 @@ impl Profile
         }
         return Ok(Profile
         {
-            path: PathBuf::from(path),
+            path: path.join(".fpkg"),
             data: map,
             platform: String::from("host")
         });

@@ -42,9 +42,9 @@ use crate::common::Result;
 use crate::profile::Profile;
 use crate::builder::check_build_configuration;
 
-fn new_pk(profile: &Profile) -> io::Result<bpxp::Encoder>
+pub fn get_pk_file(profile: &Profile) -> String
 {
-    //Format = build-<name of platform>-<architecture>-<compiler id><compiler version>.bpx
+    //Format = build-<name of platform>-<architecture>-<compiler id>-<compiler version>.bpx
     let mut s = String::from("build-");
 
     s.push_str(profile.get("Platform").unwrap());
@@ -52,9 +52,15 @@ fn new_pk(profile: &Profile) -> io::Result<bpxp::Encoder>
     s.push_str(profile.get("Arch").unwrap());
     s.push('-');
     s.push_str(profile.get("CompilerName").unwrap());
+    s.push('-');
     s.push_str(profile.get("CompilerVersion").unwrap());
     s.push_str(".bpx");
-    return bpxp::Encoder::new(Path::new(&s));
+    return s;
+}
+
+fn new_pk(profile: &Profile) -> io::Result<bpxp::Encoder>
+{
+    return bpxp::Encoder::new(Path::new(&get_pk_file(&profile)));
 }
 
 fn get_vname(cfg: String, subdir: &str, path: &Path) -> io::Result<String>
@@ -214,6 +220,7 @@ pub fn package(path: &Path) -> Result<i32>
         {
             return Err(Error::Io(ErrorDomain::Packager, e));
         }
+        println!("Successfully generated build package {}", get_pk_file(&profile));
         return Ok(0)
     }
     eprintln!("WARNING: Nothing to package!");

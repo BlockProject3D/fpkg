@@ -38,21 +38,7 @@ use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::registry::open_package_registry;
 use crate::registry::Package;
-
-fn get_pk_file(profile: &Profile) -> String
-{
-    let mut s = String::from("build-");
-
-    s.push_str(profile.get("Platform").unwrap());
-    s.push('-');
-    s.push_str(profile.get("Arch").unwrap());
-    s.push('-');
-    s.push_str(profile.get("CompilerName").unwrap());
-    s.push('-');
-    s.push_str(profile.get("CompilerVersion").unwrap());
-    s.push_str(".bpx");
-    return s;
-}
+use crate::packager::get_pk_file;
 
 pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
 {
@@ -74,5 +60,6 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     let mut registry = open_package_registry(&registry_info)?;
     registry.ensure_valid_package(&pkg)?;
     registry.publish(&pkg, &file_name, Path::new(&file_name))?;
+    println!("Uploaded package build {} to {}", &file_name, &registry_info.base_url);
     return Ok(0);
 }
