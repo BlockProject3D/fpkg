@@ -36,7 +36,6 @@ use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::luaengine::LuaFile;
-use crate::luaengine::PackageTable;
 use crate::luaengine::Dependency;
 use crate::settings::Settings;
 use crate::settings::RegistryInfo;
