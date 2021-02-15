@@ -195,6 +195,10 @@ pub fn package(path: &Path) -> Result<i32>
             Ok(v) => v,
             Err(e) => return Err(Error::Io(ErrorDomain::Packager, e))
         };
+        if target.typefkjh != "Library" && target.typefkjh != "Framework"
+        {
+            return Err(Error::Generic(ErrorDomain::Packager, format!("Unrecognized package type {}", target.typefkjh)));
+        }
         let mut obj = sd::Object::new();
         set_type_ext(&mut pk, &profile);
         obj.set("Name", sd::Value::String(package.name.clone()));
