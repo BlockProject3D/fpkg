@@ -30,6 +30,9 @@ use std::string::String;
 use std::path::Path;
 use std::fs;
 use std::collections::HashMap;
+use bpx::bpxp;
+use bpx::sd;
+use std::io;
 
 use crate::profile::Profile;
 use crate::builder;
@@ -95,6 +98,84 @@ fn check_file_name_match(profile: &Profile, file_name: &str) -> bool
     return false;
 }
 
+fn build_package_info(obj: &sd::Object) -> Result<json::object::Object>
+{
+    let mut j = json::object::Object::new();
+    if let (Some(platform), Some(arch), Some(cname),
+            Some(cversion), Some(name), Some(version),
+            Some(typeafs), Some(desc))
+            = (obj.get("Platform"), obj.get("Arch"), obj.get("CompilerName"),
+               obj.get("CompilerVersion"), obj.get("Name"), obj.get("Version"),
+               obj.get("Type"), obj.get("Description"))
+    {
+        match platform
+        {
+            sd::Value::String(s) => j.insert("Platform", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Platform'")))
+        };
+        match arch
+        {
+            sd::Value::String(s) => j.insert("Arch", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Arch'")))
+        };
+        match cname
+        {
+            sd::Value::String(s) => j.insert("CompilerName", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'CompilerName'")))
+        };
+        match cversion
+        {
+            sd::Value::String(s) => j.insert("CompilerVersion", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'CompilerVersion'")))
+        };
+        match name
+        {
+            sd::Value::String(s) => j.insert("Name", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Name'")))
+        };
+        match version
+        {
+            sd::Value::String(s) => j.insert("Version", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Version'")))
+        };
+        match typeafs
+        {
+            sd::Value::String(s) => j.insert("Type", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Type'")))
+        };
+        match desc
+        {
+            sd::Value::String(s) => j.insert("Description", json::JsonValue::String(s.clone())),
+            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Description'")))
+        };
+    }
+    return Err(Error::Generic(ErrorDomain::Installer, String::from("Missing some required properties in BPX package")));
+}
+
+fn unpack_bpx(file: &Path, folder: &Path) -> Result<()>
+{
+    let mut decoder = match bpxp::Decoder::new(&file)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e))
+    };
+    let obj = match decoder.open_metadata()
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e))
+    };
+    let json = build_package_info(&obj)?;
+    if let Err(e) = fs::write(&folder.join("package-info.json"), json::stringify(json))
+    {
+        return Err(Error::Io(ErrorDomain::Installer, e));
+    }
+    if let Err(e) = decoder.unpack(&folder)
+    {
+        return Err(Error::Io(ErrorDomain::Installer, e));
+    }
+    return Ok(());
+}
+
 fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
 {
     println!("Installing dependency {} - {}...", &dep.name, &dep.version);
@@ -118,7 +199,7 @@ fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<Regi
                             }
                         }
                         registry.download(&folder, &pkg, &file_name)?;
-                        //TODO: Add unpack system here
+                        unpack_bpx(&folder.join(Path::new(&file_name)), &folder)?;
                         println!("Installed dependency {} - {}", &dep.name, &dep.version);
                         return Ok(());
                     }
