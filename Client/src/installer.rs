@@ -28,6 +28,7 @@
 
 use std::string::String;
 use std::path::Path;
+use std::fs;
 
 use crate::profile::Profile;
 use crate::builder;
@@ -35,12 +36,14 @@ use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::luaengine::LuaFile;
+use crate::luaengine::PackageTable;
+use crate::luaengine::Dependency;
+use crate::settings::Settings;
+use crate::settings::RegistryInfo;
+use crate::registry::open_package_registry;
 
-fn run_lua_engine(path: &Path, profile: &Profile) -> Result<Option<Vec<String>>>
+fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<String>>>
 {
-    let mut file = LuaFile::new();
-    file.open_libs()?;
-    file.open(&path)?;
     if file.has_func_install()
     {
         return file.func_install(&profile);
@@ -51,10 +54,100 @@ fn run_lua_engine(path: &Path, profile: &Profile) -> Result<Option<Vec<String>>>
     }
 }
 
+fn check_file_name_match(profile: &Profile, file_name: &str) -> bool
+{
+    //File format: build-Platform-Arch-CompilerName-CompilerVersion.bpx
+    let components = &file_name[0..file_name.len() - 4].split('-').collect::<Vec<&str>>();
+    let platform = profile.get("Platform").unwrap();
+    let arch = profile.get("Arch").unwrap();
+    let compiler = profile.get("CompilerName").unwrap();
+    let version = profile.get("CompilerVersion").unwrap();
+
+    if components.len() != 5 || &components[0] != &"build" || &components[1] != platform
+        || &components[2] != arch || &components[3] != compiler
+    {
+        return false;
+    }
+    if &components[4] == version
+    {
+        return true;
+    }
+    else
+    {
+        let rep1 = version.replace('.', "");
+        let rep2 = &components[4].replace('.', "");
+        if let Ok(value1) = rep1.parse::<usize>()
+        {
+            if let Ok(value2) = rep2.parse::<usize>()
+            {
+                if value2 >= value1
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
+{
+    println!("Installing dependency {} - {}...", &dep.name, &dep.version);
+    for registry_info in registries
+    {
+        let mut registry = open_package_registry(&registry_info)?;
+        if dep.version == "latest"
+        {
+            if let Some(pkg) = registry.find_latest(&dep.name)?
+            {
+                for file_name in &pkg.files
+                {
+                    if check_file_name_match(&profile, &file_name)
+                    {
+                        let folder = profile.get_platform_path().join(Path::new(&dep.name));
+                        if !folder.exists()
+                        {
+                            if let Err(e) = fs::create_dir(&folder)
+                            {
+                                return Err(Error::Io(ErrorDomain::Installer, e));
+                            }
+                        }
+                        registry.download(&folder, &pkg, &file_name)?;
+                        //TODO: Add unpack system here
+                        return Ok(());
+                    }
+                }
+                return Err(Error::Generic(ErrorDomain::Installer, format!("The dependency ({} - {}) is not compatible with your system", &dep.name, &dep.version)));
+            }
+            continue;
+        }
+    }
+    return Err(Error::Generic(ErrorDomain::Installer, format!("Could not find dependency {} in any registry", &dep.name)));
+}
+
+fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
+{
+    let package = file.read_table()?;
+    if let Some(deps) = package.dependencies
+    {
+        for dep in deps
+        {
+            install_dependency(&dep, &profile, &registries)?;
+        }
+    }
+    return Ok(());
+}
+
 fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
 {
+    let settings = Settings::new()?;
     let mut res = Vec::new();
     let mut profile = Profile::new(path)?;
+    let registries = settings.get_registries();
 
     if let Some(p) = platform
     {
@@ -64,7 +157,12 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
     let path = Path::new(path).join("fpkg.lua");
     if path.exists()
     {
-        if let Some(vc) = run_lua_engine(&path, &profile)?
+        let mut file = LuaFile::new();
+        file.open_libs()?;
+        file.open(&path)?;
+        //TODO: Implement dependency/framework downloader/installer and connect it right here
+        install_depenedencies(&mut file, &profile, &registries)?;
+        if let Some(vc) = run_lua_install(&mut file, &profile)?
         {
             for path in vc
             {
@@ -72,7 +170,6 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
             }
         }
     }
-    //TODO: Implement dependency/framework downloader/installer and connect it right here
     return Ok(res);
 }
 
