@@ -32,7 +32,6 @@ use std::fs;
 use std::collections::HashMap;
 use bpx::bpxp;
 use bpx::sd;
-use std::io;
 
 use crate::profile::Profile;
 use crate::builder;
