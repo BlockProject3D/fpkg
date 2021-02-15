@@ -48,6 +48,7 @@ fn get_pk_file(profile: &Profile) -> String
     s.push_str(profile.get("Arch").unwrap());
     s.push('-');
     s.push_str(profile.get("CompilerName").unwrap());
+    s.push('-');
     s.push_str(profile.get("CompilerVersion").unwrap());
     s.push_str(".bpx");
     return s;
