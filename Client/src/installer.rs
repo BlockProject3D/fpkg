@@ -56,24 +56,11 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
     let mut res = Vec::new();
     let mut profile = Profile::new(path)?;
 
-    match Profile::mkdir(path)
+    if let Some(p) = platform
     {
-        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e)),
-        _ => ()
+        profile.set_platform(p)?;
     }
-    if !profile.exists()
-    {
-        match platform
-        {
-            Some(name) => profile.regenerate_cross(name)?,
-            None => profile.regenerate_self()?
-        }
-    }
-    match profile.write()
-    {
-        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e)),
-        _ => ()
-    }
+    profile.install()?;
     let path = Path::new(path).join("fpkg.lua");
     if path.exists()
     {

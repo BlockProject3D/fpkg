@@ -41,10 +41,13 @@ use crate::common::ErrorDomain;
 #[cfg(windows)]
 use winapi::um::fileapi;
 
+const CROSS_PLATFORMS: [&'static str; 1] = ["android"];
+
 pub struct Profile
 {
     path: PathBuf,
-    data: HashMap<String, String>
+    data: HashMap<String, String>,
+    platform: String
 }
 
 fn read_profile(path: &Path, map: &mut HashMap<String, String>) -> Result<()>
@@ -128,14 +131,20 @@ fn find_compiler_info() -> Result<(String, String)>
 
 impl Profile
 {
-    pub fn mkdir(path: &Path) -> io::Result<()>
+    fn mkdir(&self) -> io::Result<()>
     {
-        let p = path.join(Path::new(".fpkg"));
+        let p = self.path.join(Path::new(".fpkg"));
+        let toolchain = p.join(Path::new(&self.platform));
 
-        if !p.exists() {
+        if !p.exists()
+        {
             fs::create_dir(&p)?;
             #[cfg(windows)]
             fileapi::SetFileAttributesA(&p, fileapi::FILE_ATTRIBUTE_HIDDEN);
+        }
+        if !toolchain.exists()
+        {
+            fs::create_dir(&toolchain)?;
         }
         return Ok(());
     }
@@ -143,31 +152,32 @@ impl Profile
     pub fn new(path: &Path) -> Result<Profile>
     {
         let mut map = HashMap::new();
-        let p = path.join(Path::new(".fpkg/profile"));
+        let p = path.join(Path::new(".fpkg/host/profile"));
 
         if p.exists() {
             read_profile(&p, &mut map)?;
         }
         return Ok(Profile
         {
-            path: p,
-            data: map
+            path: PathBuf::from(path),
+            data: map,
+            platform: String::from("host")
         });
+    }
+
+    pub fn get_platform_path(&self) -> PathBuf
+    {
+        return self.path.join(Path::new(&self.platform));
     }
 
     pub fn exists(&self) -> bool
     {
-        return self.path.exists();
+        return self.get_platform_path().join("profile").exists();
     }
 
     pub fn get(&self, name: &str) -> Option<&String>
     {
         return self.data.get(&String::from(name));
-    }
-
-    pub fn regenerate_cross(&mut self, name: &str) -> Result<()> //Regenerate profile for cross-compile platform
-    {
-        return Err(Error::Generic(ErrorDomain::Profile, format!("Platform name {} does not exist", name)));
     }
 
     pub fn write(&self) -> io::Result<()>
@@ -178,7 +188,7 @@ impl Profile
         {
             json[k] = json::JsonValue::String(v.to_string());
         }
-        fs::write(&self.path, json.dump())?;
+        fs::write(&self.get_platform_path().join("profile"), json.dump())?;
         return Ok(());
     }
 
@@ -199,7 +209,54 @@ impl Profile
         }
     }
 
-    pub fn regenerate_self(&mut self) -> Result<()> //Regenerate profile for current platform
+    //Sets the name of the current platform
+    pub fn set_platform(&mut self, name: &str) -> Result<()>
+    {
+        for v in &CROSS_PLATFORMS
+        {
+            if &name == v
+            {
+                self.platform = String::from(name);
+                let path = self.get_platform_path().join("profile");
+                let mut map = HashMap::new();
+                read_profile(&path, &mut map)?;
+                self.data = map;
+                return Ok(());
+            }
+        }
+        return Err(Error::Generic(ErrorDomain::Profile, format!("Unknown cross-compile target platform: {}", name)));
+    }
+
+    pub fn install(&mut self) -> Result<()>
+    {
+        if !self.exists()
+        {
+            if let Err(e) = self.mkdir()
+            {
+                return Err(Error::Io(ErrorDomain::Profile, e));
+            }
+            if &self.platform == "host"
+            {
+                self.regenerate_self()?;
+            }
+            else
+            {
+                self.regenerate_cross()?;
+            }
+            if let Err(e) = self.write()
+            {
+                return Err(Error::Io(ErrorDomain::Profile, e));
+            }
+        }
+        return Ok(());
+    }
+
+    fn regenerate_cross(&mut self) -> Result<()> //Regenerate profile for cross-compiled target platform
+    {
+        return Err(Error::Generic(ErrorDomain::Profile, String::from("Cross-compiled target platforms are currently not supported")));
+    }
+
+    fn regenerate_self(&mut self) -> Result<()> //Regenerate profile for host target platform
     {
         if cfg!(target_os = "windows")
         {
