@@ -29,6 +29,8 @@
 use std::collections::HashMap;
 use std::boxed::Box;
 use std::path::Path;
+use std::string::String;
+use std::vec::Vec;
 
 use crate::common::Result;
 use crate::common::Error;
@@ -41,6 +43,9 @@ pub trait PackageRegistry
 {
     fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>;
     fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>;
+    fn find_latest(&mut self, name: &str) -> Result<Vec<String>>;
+    fn find(&mut self, name: &str, version: &str) -> Result<Vec<String>>;
+    fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>;
 }
 
 pub trait RegistryProvider

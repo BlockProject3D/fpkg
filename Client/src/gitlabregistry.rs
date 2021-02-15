@@ -31,6 +31,9 @@ use std::string::String;
 use std::path::Path;
 use regex::Regex;
 use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::io;
 
 use crate::common::Result;
 use crate::common::Error;
@@ -48,15 +51,15 @@ struct GitLabRegistry
 
 impl GitLabRegistry
 {
-    fn find_package(&mut self, package: &PackageTable) -> Result<Option<glgp::types::PackageEntry>>
+    fn find_package(&mut self, name: &str, version: &str) -> Result<Option<glgp::types::PackageEntry>>
     {
         let mut page = 1;
         loop
         {
-            let mut data = match self.list.search(page, &package.name)
+            let mut data = match self.list.search(page, name)
             {
                 Ok(v) => v,
-                Err(e) => return Err(Error::Generic(ErrorDomain::Publisher, format!("A HTTP request has failed: {}", e)))
+                Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e)))
             };
             if data.len() == 0
             {
@@ -64,13 +67,37 @@ impl GitLabRegistry
             }
             for i in 0..data.len()
             {
-                if data[i].version == package.version
+                if data[i].version == version
                 {
                     return Ok(Some(data.remove(i)));
                 }
             }
             page += 1;
         }
+    }
+
+    fn list_file_names(&mut self, package: &glgp::types::PackageEntry) -> Result<Vec<String>>
+    {
+        let mut res = Vec::new();
+        let mut page = 1;
+        loop
+        {
+            let mut data = match self.list.list_files(page, &package)
+            {
+                Ok(v) => v,
+                Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e)))
+            };
+            if data.len() == 0
+            {
+                break;
+            }
+            for i in 0..data.len()
+            {
+                res.push(data.remove(i).file_name);
+            }
+            page += 1;
+        }
+        return Ok(res);
     }
 
     fn find_file(&mut self, package: &glgp::types::PackageEntry, file_name: &str) -> Result<Option<glgp::types::PackageFile>>
@@ -81,7 +108,7 @@ impl GitLabRegistry
             let mut data = match self.list.list_files(page, &package)
             {
                 Ok(v) => v,
-                Err(e) => return Err(Error::Generic(ErrorDomain::Publisher, format!("A HTTP request has failed: {}", e)))
+                Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e)))
             };
             if data.len() == 0
             {
@@ -99,6 +126,23 @@ impl GitLabRegistry
     }
 }
 
+fn download_file(target: &Path, src: &mut dyn Read) -> io::Result<()>
+{
+    let mut buf: [u8; 8192] = [0; 8192];
+    let mut f = File::create(target)?;
+
+    loop
+    {
+        let bytes = src.read(&mut buf)?;
+        if bytes == 0
+        {
+            break;
+        }
+        f.write(&buf[0..bytes])?;
+    }
+    return Ok(());
+}
+
 impl PackageRegistry for GitLabRegistry
 {
     fn ensure_valid_package(&mut self, package: &PackageTable) -> Result<()>
@@ -108,22 +152,22 @@ impl PackageRegistry for GitLabRegistry
     
         if !re.is_match(&package.version)
         {
-            return Err(Error::Generic(ErrorDomain::Publisher, format!("The package version string {} is not supported by GitLab Generic Packages", &package.version)));
+            return Err(Error::Generic(ErrorDomain::Registry, format!("The package version string {} is not supported by GitLab Generic Packages", &package.version)));
         }
         if !re1.is_match(&package.name)
         {
-            return Err(Error::Generic(ErrorDomain::Publisher, format!("The package name string {} is not supported by GitLab Generic Packages", &package.name)));
+            return Err(Error::Generic(ErrorDomain::Registry, format!("The package name string {} is not supported by GitLab Generic Packages", &package.name)));
         }
         return Ok(());
     }
 
     fn publish(&mut self, package: &PackageTable, file_name: &str, file: &Path) -> Result<()>
     {
-        if let Some(pkg) = self.find_package(&package)?
+        if let Some(pkg) = self.find_package(&package.name, &package.version)?
         {
             if let Some(_) = self.find_file(&pkg, &file_name)?
             {
-                return Err(Error::Generic(ErrorDomain::Publisher, format!("A package release already exists for the combination {}>{}>{}", &package.name, &package.version, &file_name)));
+                return Err(Error::Generic(ErrorDomain::Registry, format!("A package release already exists for the combination {}>{}>{}", &package.name, &package.version, &file_name)));
             }
         }
         if let Some(mgr) = &mut self.manager
@@ -131,15 +175,71 @@ impl PackageRegistry for GitLabRegistry
             let f = match File::open(&file)
             {
                 Ok(v) => v,
-                Err(e) => return Err(Error::Io(ErrorDomain::Publisher, e))
+                Err(e) => return Err(Error::Io(ErrorDomain::Registry, e))
             };
             match mgr.upload(&package.name, &package.version, &file_name, f)
             {
                 Ok(()) => return Ok(()),
-                Err(e) => return Err(Error::Generic(ErrorDomain::Publisher, format!("A HTTP request has failed: {}", e)))
+                Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e)))
             }
         }
-        return Err(Error::Generic(ErrorDomain::Publisher, String::from("The registry does not have a valid access token!")))
+        return Err(Error::Generic(ErrorDomain::Registry, String::from("The registry does not have a valid access token!")))
+    }
+
+    fn find_latest(&mut self, name: &str) -> Result<Vec<String>>
+    {
+        let data = match self.list.search(1, name)
+        {
+            Ok(v) => v,
+            Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e)))
+        };
+        if data.len() == 0
+        {
+            return Err(Error::Generic(ErrorDomain::Registry, format!("Could not find a package named {}", &name)));
+        }
+        return self.list_file_names(&data[0]);
+    }
+
+    fn find(&mut self, name: &str, version: &str) -> Result<Vec<String>>
+    {
+        let package = self.find_package(&name, &version)?;
+        if let Some(pkg) = package
+        {
+            return self.list_file_names(&pkg);
+        }
+        return Err(Error::Generic(ErrorDomain::Registry, format!("Could not find a package named {}", &name)));
+    }
+
+    fn download(&mut self, target_folder: &Path, name: &str, version: &str, file_name: &str) -> Result<()>
+    {
+        if let Some(mgr) = &mut self.manager
+        {
+            let pkg = glgp::types::PackageEntry
+            {
+                id: 0,
+                version: String::from(version),
+                name: String::from(name)
+            };
+            let file = glgp::types::PackageFile
+            {
+                id: 0,
+                file_name: String::from(file_name),
+                size: 0
+            };
+            match mgr.download(&pkg, &file)
+            {
+                Err(e) => return Err(Error::Generic(ErrorDomain::Registry, format!("A HTTP request has failed: {}", e))),
+                Ok(mut response) =>
+                {
+                    if let Err(e) = download_file(&target_folder.join(Path::new(file_name)), &mut response)
+                    {
+                        return Err(Error::Io(ErrorDomain::Registry, e));
+                    }
+                    return Ok(());
+                }
+            };
+        }
+        return Err(Error::Generic(ErrorDomain::Registry, String::from("The registry does not have a valid access token!")));
     }
 }
 
