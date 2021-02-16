@@ -40,7 +40,8 @@ pub enum ErrorDomain
     Publisher,
     LuaEngine,
     Settings,
-    Registry
+    Registry,
+    Generator
 }
 
 pub enum Error
