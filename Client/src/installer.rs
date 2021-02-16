@@ -305,7 +305,7 @@ fn call_generator_lib(package_dir: &Path, package_name: &str, generator: &mut Bo
         for item in items
         {
             let mut s = cfg.clone();
-            s.push('/');
+            s.push_str("/bin/");
             s.push_str(&item);
             lib.binaries.push(Target
             {

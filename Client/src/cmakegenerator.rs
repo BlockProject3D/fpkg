@@ -205,7 +205,7 @@ fn compute_master_target(macro_name: &str, package_name: &str, include_dirs: &Ve
 
     for inc in include_dirs
     {
-        s.push_str(&format!("target_include_directories(fpkg::{} INTERFACE $<$<CONFIG:{}>:\"${{{}}}/{}\">)\n", package_name, &inc.configuration, macro_name, &inc.relative_path));
+        s.push_str(&format!("target_include_directories(fpkg::{} INTERFACE $<$<CONFIG:{}>:${{{}}}/{}>)\n", package_name, &inc.configuration, macro_name, &inc.relative_path));
     }
     for (name, _) in cmake_targets
     {
