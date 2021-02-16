@@ -287,7 +287,6 @@ fn call_generator_lib(package_dir: &Path, package_name: &str, generator: &mut Bo
 {
     let mut lib = Library
     {
-        name: String::from(package_name),
         binaries: Vec::new(),
         include_dirs: Vec::new()
     };
