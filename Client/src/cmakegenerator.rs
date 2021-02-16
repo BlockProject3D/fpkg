@@ -62,26 +62,12 @@ fn compute_cmake_target(macro_name: &str, package_name: &str, targets: Vec<CMake
     let name;
     if let Some(idx) = targets[0].location.rfind('/')
     {
-        let sub = &targets[0].location[idx + 1..];
-        if let Some(idx1) = sub.rfind('.')
-        {
-            name = format!("{}::{}", package_name, &sub[0..idx1]);
-        }
-        else
-        {
-            name = format!("{}::{}", package_name, &sub);
-        }
+        let sub = &targets[0].location[idx + 1..].replace('.', "");
+        name = format!("{}::{}", package_name, &sub);
     }
     else
     {
-        if let Some(idx1) = targets[0].location.rfind('.')
-        {
-            name = format!("{}::{}", package_name, &targets[0].location[0..idx1]);
-        }
-        else
-        {
-            name = format!("{}::{}", package_name, &targets[0].location);
-        }
+        name = format!("{}::{}", package_name, &targets[0].location.replace('.', ""));
     }
     
     let mut s = format!("add_library({} UNKNOWN IMPORTED)", name);
