@@ -344,7 +344,8 @@ fn call_generator(profile: &Profile, dep: &Dependency, generator: &mut Box<dyn B
 
 fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
 {
-    let mut generator = (create_generator("cmake", profile.get_path(), profile.get_platform())?).unwrap(); //TODO: Allow using different generators
+    //TODO: Allow using different generators
+    let mut generator = (create_generator("cmake", profile.get_path(), profile.get_platform())?).unwrap();
     let package = file.read_table()?;
     if let Some(deps) = package.dependencies
     {

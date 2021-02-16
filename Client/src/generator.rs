@@ -33,6 +33,7 @@ use std::vec::Vec;
 use std::collections::HashMap;
 
 use crate::common::Result;
+use crate::cmakegenerator::CMakeGeneratorProvider;
 
 #[derive(Clone)]
 pub struct Target
@@ -67,6 +68,7 @@ pub trait BuildGeneratorProvider
 pub fn create_generator(generator_name: &str, base_folder: &Path, toolchain_name: &str) -> Result<Option<Box<dyn BuildGenerator>>>
 {
     let mut v: HashMap<&str, Box<dyn BuildGeneratorProvider>> = HashMap::new();
+    v.insert("cmake", Box::new(CMakeGeneratorProvider {}));
     if let Some(g) = v.remove(generator_name)
     {
         let generator = g.new(base_folder, toolchain_name)?;
