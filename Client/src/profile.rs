@@ -150,6 +150,16 @@ impl Profile
         return self.path.join(Path::new(&self.platform));
     }
 
+    pub fn get_path(&self) -> &Path
+    {
+        return &self.path;
+    }
+
+    pub fn get_platform(&self) -> &str
+    {
+        return &self.platform;
+    }
+
     pub fn exists(&self) -> bool
     {
         return self.get_platform_path().join("profile").exists();
