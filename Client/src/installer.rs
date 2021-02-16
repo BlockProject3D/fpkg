@@ -32,7 +32,12 @@ use std::fs;
 use std::collections::HashMap;
 use bpx::bpxp;
 use bpx::sd;
+use std::io;
 
+use crate::generator::create_generator;
+use crate::generator::BuildGenerator;
+use crate::generator::Target;
+use crate::generator::Library;
 use crate::profile::Profile;
 use crate::builder;
 use crate::common::Result;
@@ -246,8 +251,100 @@ fn is_dependency_installed(dep: &Dependency, profile: &Profile) -> Result<bool>
     return Ok(true);
 }
 
+fn list_configurations(path: &Path) -> io::Result<Vec<String>>
+{
+    let mut configs = Vec::new();
+    let paths = fs::read_dir(&path)?;
+    for path in paths
+    {
+        let motehrfucker = path?;
+        if motehrfucker.file_type()?.is_dir()
+        {
+            let config = motehrfucker.file_name();
+            //This will in all cases always return a valid UTF-8 string as BPXP does not support non UTF-8 encoded paths
+            //See https://github.com/BlockProject3D/BPX/blob/master/BPX_Format.pdf Section 10.1.1 for more information
+            configs.push(config.to_string_lossy().into_owned());
+        }
+    }
+    return Ok(configs);
+}
+
+fn list_items(path: &Path) -> io::Result<Vec<String>>
+{
+    let mut items = Vec::new();
+    let paths = fs::read_dir(&path)?;
+    for path in paths
+    {
+        let item = path?.file_name();
+        //This will in all cases always return a valid UTF-8 string as BPXP does not support non UTF-8 encoded paths
+        //See https://github.com/BlockProject3D/BPX/blob/master/BPX_Format.pdf Section 10.1.1 for more information
+        items.push(item.to_string_lossy().into_owned());
+    }
+    return Ok(items);
+}
+
+fn call_generator_lib(package_dir: &Path, package_name: &str, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
+{
+    let mut lib = Library
+    {
+        binaries: Vec::new(),
+        include_dirs: Vec::new()
+    };
+    let configs = match list_configurations(&package_dir)
+    {
+        Ok(v) => v,
+        Err(e) => return Err(Error::Io(ErrorDomain::Installer, e))
+    };
+    for cfg in configs
+    {
+        let items = match list_items(&package_dir.join(Path::new(&cfg)).join(Path::new("bin")))
+        {
+            Ok(v) => v,
+            Err(e) => return Err(Error::Io(ErrorDomain::Installer, e))
+        };
+        for item in items
+        {
+            let mut s = cfg.clone();
+            s.push('/');
+            s.push_str(&item);
+            lib.binaries.push(Target
+            {
+                relative_path: s,
+                configuration: cfg.clone()
+            });
+        }
+        let mut s1 = cfg.clone();
+        s1.push_str("/include");
+        lib.include_dirs.push(Target
+        {
+            relative_path: s1,
+            configuration: cfg.clone()
+        })
+    }
+    generator.add_library(&package_name, lib)?;
+    return Ok(());
+}
+
+fn call_generator(profile: &Profile, dep: &Dependency, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
+{
+    let package_dir = profile.get_platform_path().join(Path::new(&dep.name));
+    let path = package_dir.join("package-info.json");
+    let mut map = HashMap::new();
+    read_property_map(&path, &mut map)?;
+    if map["Type"] == "Library"
+    {
+        call_generator_lib(&package_dir, &dep.name, generator)?;
+    }
+    else if map["Type"] == "Framework"
+    {
+        generator.add_framework(&dep.name)?;
+    }
+    return Ok(());
+}
+
 fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
 {
+    let mut generator = (create_generator("cmake", profile.get_path(), profile.get_platform())?).unwrap(); //TODO: Allow using different generators
     let package = file.read_table()?;
     if let Some(deps) = package.dependencies
     {
@@ -257,8 +354,10 @@ fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec
             {
                 install_dependency(&dep, &profile, &registries)?;
             }
+            call_generator(&profile, &dep, &mut generator)?;
         }
     }
+    generator.generate()?;
     return Ok(());
 }
 

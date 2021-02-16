@@ -63,6 +63,8 @@ mod settings;
 mod registry;
 mod gitlabregistry;
 mod cmakebuilder;
+mod generator;
+mod cmakegenerator;
 
 use std::path::Path;
 use clap::clap_app;
