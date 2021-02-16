@@ -44,6 +44,7 @@ pub struct Target
 //Stores information about a single library with only paths relative to the base_folder
 pub struct Library
 {
+    pub name: String,
     pub binaries: Vec<Target>,
     pub include_dirs: Vec<Target>
 }
