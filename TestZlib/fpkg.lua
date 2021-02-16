@@ -10,7 +10,11 @@ function Build(profile)
         command.Run("git", {"clone", "https://github.com/madler/zlib.git"})
     end
     if not(file.IsDirectory("zlib-"..profile.Configuration)) then
-        command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+        if not(profile.Platform == "Windows") then
+            command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration, "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"})
+        else
+            command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+        end
     end
     command.Run("cmake", {"--build", "zlib-"..profile.Configuration, "--config", profile.Configuration, "--target", "zlibstatic"})
 end
@@ -22,6 +26,10 @@ function Package(profile)
         Build(tbl)
         command.Run("cmake", {"--build", "zlib-"..v, "--target", "install"})
     end
+    local filename = "libz.a"
+    if (profile.Platform == "Windows") then
+        filename = "libz.lib"
+    end
     local target = {
         Type = "Library", --Either Library or Framework
         Includes = { --Only for Library targets
@@ -29,8 +37,8 @@ function Package(profile)
             {"./Debug/include", "Debug"}
         },
         Binaries = { --Only for Library targets
-            {"./Debug/lib/libz.a", "Debug"}, --Relative path, configuration type
-            {"./Release/lib/libz.a", "Release"}
+            {"./Debug/lib/"..filename, "Debug"}, --Relative path, configuration type
+            {"./Release/lib/"..filename, "Release"}
         }
     }
     return target
