@@ -46,7 +46,7 @@ use winapi::um::winnt::FILE_ATTRIBUTE_HIDDEN;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 
-const CROSS_PLATFORMS: [&'static str; 1] = ["android"];
+const CROSS_PLATFORMS: [&'static str; 2] = ["host", "android"];
 
 pub struct Profile
 {
@@ -216,9 +216,16 @@ impl Profile
             {
                 self.platform = String::from(name);
                 let path = self.get_platform_path().join("profile");
-                let mut map = HashMap::new();
-                read_property_map(&path, &mut map)?;
-                self.data = map;
+                if path.exists()
+                {
+                    let mut map = HashMap::new();
+                    read_property_map(&path, &mut map)?;
+                    self.data = map;
+                }
+                else
+                {
+                    self.data = HashMap::new();
+                }
                 return Ok(());
             }
         }
