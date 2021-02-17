@@ -24,11 +24,13 @@ function Package(profile)
         local tbl = profile;
         tbl.Configuration = v;
         Build(tbl)
-        command.Run("cmake", {"--build", "zlib-"..v, "--target", "install"})
+        command.Run("cmake", {"--build", "zlib-"..v, "--target", "install", "--config", v})
     end
+    local filenamed = "libz.a"
     local filename = "libz.a"
     if (profile.Platform == "Windows") then
-        filename = "libz.lib"
+        filenamed = "zlibstaticd.lib"
+        filename = "zlibstatic.lib"
     end
     local target = {
         Type = "Library", --Either Library or Framework
@@ -37,7 +39,7 @@ function Package(profile)
             {"./Debug/include", "Debug"}
         },
         Binaries = { --Only for Library targets
-            {"./Debug/lib/"..filename, "Debug"}, --Relative path, configuration type
+            {"./Debug/lib/"..filenamed, "Debug"}, --Relative path, configuration type
             {"./Release/lib/"..filename, "Release"}
         }
     }
