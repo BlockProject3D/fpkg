@@ -41,6 +41,10 @@ use crate::common::read_property_map;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
+#[cfg(windows)]
+use winapi::um::winnt::FILE_ATTRIBUTE_HIDDEN;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
 
 const CROSS_PLATFORMS: [&'static str; 1] = ["android"];
 
@@ -120,7 +124,11 @@ impl Profile
         {
             fs::create_dir(&self.path)?;
             #[cfg(windows)]
-            fileapi::SetFileAttributesA(&self.path, fileapi::FILE_ATTRIBUTE_HIDDEN);
+            unsafe
+            {
+                let result: Vec<u16> = self.path.as_os_str().encode_wide().collect();
+                fileapi::SetFileAttributesW(result.as_ptr(), FILE_ATTRIBUTE_HIDDEN);
+            }
         }
         if !toolchain.exists()
         {
