@@ -91,9 +91,9 @@ impl GitLabRegistry
             {
                 break;
             }
-            for i in 0..data.len()
+            while let Some(file) = data.pop()
             {
-                res.push(data.remove(i).file_name);
+                res.push(file.file_name);
             }
             page += 1;
         }
