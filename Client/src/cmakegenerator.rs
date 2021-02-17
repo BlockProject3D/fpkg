@@ -174,12 +174,21 @@ fn group_binaries_by_config(pass1: Vec<CMakeTarget>, macro_name: &str, package_n
                 {
                     targets.push(v.clone());
                     targets.push(v1.clone());
+                    set.insert(j);
                 }
             }
-            set.insert(j);
         }
-        let (name, res) = compute_cmake_target(&macro_name, &package_name, targets);
-        vec.push((name, res));
+        if targets.len() == 0
+        {
+            targets.push(v.clone());
+            let (name, res) = compute_cmake_target(&macro_name, &package_name, targets);
+            vec.push((name, res));
+        }
+        else
+        {
+            let (name, res) = compute_cmake_target(&macro_name, &package_name, targets);
+            vec.push((name, res));
+        }
         set.insert(i);
     }
     return vec;
