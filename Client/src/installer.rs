@@ -50,7 +50,7 @@ use crate::settings::RegistryInfo;
 use crate::registry::open_package_registry;
 use crate::common::read_property_map;
 
-fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<String>>>
+/*fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<String>>>
 {
     if file.has_func_install()
     {
@@ -60,7 +60,7 @@ fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<S
     {
         return Ok(None);
     }
-}
+}*/
 
 fn check_file_name_match(profile: &Profile, file_name: &str) -> bool
 {
@@ -342,10 +342,8 @@ fn call_generator(profile: &Profile, dep: &Dependency, generator: &mut Box<dyn B
     return Ok(());
 }
 
-fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
+fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
 {
-    //TODO: Allow using different generators
-    let mut generator = (create_generator("cmake", profile.get_path(), profile.get_platform())?).unwrap();
     let package = file.read_table()?;
     if let Some(deps) = package.dependencies
     {
@@ -355,19 +353,24 @@ fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec
             {
                 install_dependency(&dep, &profile, &registries)?;
             }
-            call_generator(&profile, &dep, &mut generator)?;
+            call_generator(&profile, &dep, generator)?;
         }
     }
     generator.generate()?;
     return Ok(());
 }
 
-fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
+fn install_sub_directory(path: &Path, platform: Option<&str>, generator_name: &str) -> Result<Vec<String>>
 {
     let settings = Settings::new()?;
     let mut res = Vec::new();
     let mut profile = Profile::new(path)?;
     let registries = settings.get_registries();
+    let mut generator = match create_generator(&generator_name, profile.get_path(), profile.get_platform())?
+    {
+        Some(v) => v,
+        None => return Err(Error::Generic(ErrorDomain::Installer, format!("No generator named {} found", generator_name)))
+    };
 
     if let Some(p) = platform
     {
@@ -380,12 +383,22 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
         let mut file = LuaFile::new();
         file.open_libs()?;
         file.open(&path)?;
-        install_depenedencies(&mut file, &profile, &registries)?;
-        if let Some(vc) = run_lua_install(&mut file, &profile)?
+        if file.has_func_get_sub_projects()
         {
-            for path in vc
+            if let Some(subprojects) = file.func_get_sub_projects(&profile)?
             {
-                res.push(path);
+                for path in subprojects
+                {
+                    res.push(path);
+                }
+            }
+        }
+        install_depenedencies(&mut file, &profile, &registries, &mut generator)?;
+        if file.has_func_install()
+        {
+            if let Some(props) = file.func_install(&profile)?
+            {
+                //TODO: Call toolchain generator if needed with the props obtained from here
             }
         }
     }
@@ -401,14 +414,19 @@ fn check_is_valid_project_dir(path: &Path) -> Result<()>
     return Ok(());
 }
 
-pub fn install(platform: Option<&str>) -> Result<()>
+pub fn install(platform: Option<&str>, generator: Option<&str>) -> Result<()>
 {
     let mut directories: Vec<String> = Vec::new();
     directories.push(String::from("."));
     while let Some(dir) = directories.pop()
     {
         check_is_valid_project_dir(Path::new(&dir))?;
-        let subdirs = install_sub_directory(Path::new(&dir), platform)?;
+        let gname = match generator
+        {
+            Some(v) => v,
+            None => "cmake"
+        };
+        let subdirs = install_sub_directory(Path::new(&dir), platform, &gname)?;
         for v in subdirs
         {
             directories.push(v);

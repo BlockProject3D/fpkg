@@ -26,6 +26,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use std::collections::HashMap;
 use std::path::Path;
 use rlua::Lua;
 use std::fs;
@@ -306,6 +307,19 @@ impl LuaFile
         }
     }
 
+    pub fn has_func_get_sub_projects(&self) -> bool
+    {
+        let res = self.state.context(|ctx|
+        {
+            return ctx.globals().contains_key("GetSubProjects");
+        });
+        match res
+        {
+            Ok(v) => return v,
+            Err(_) => return false
+        }
+    }
+
     pub fn has_func_build(&self) -> bool
     {
         let res = self.state.context(|ctx|
@@ -319,13 +333,35 @@ impl LuaFile
         }
     }
 
-    pub fn func_install(&mut self, profile: &Profile) -> Result<Option<Vec<String>>>
+    pub fn func_install(&mut self, profile: &Profile) -> Result<Option<HashMap<String, String>>>
     {
         let res = self.state.context(|ctx|
         {
             let mut tbl = ctx.create_table()?;
             profile.fill_table(&mut tbl)?;
             let func: rlua::Function = ctx.globals().get("Install")?;
+            let res: Option<HashMap<String, String>> = func.call(tbl)?;
+
+            match res
+            {
+                Some(v) => return Ok(Some(v)),
+                None => return Ok(None)
+            }
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
+        }
+    }
+
+    pub fn func_get_sub_projects(&mut self, profile: &Profile) -> Result<Option<Vec<String>>>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let mut tbl = ctx.create_table()?;
+            profile.fill_table(&mut tbl)?;
+            let func: rlua::Function = ctx.globals().get("GetSubProjects")?;
             let res: Option<Vec<String>> = func.call(tbl)?;
 
             match res

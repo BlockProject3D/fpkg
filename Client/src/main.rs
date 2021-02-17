@@ -69,9 +69,9 @@ mod cmakegenerator;
 use std::path::Path;
 use clap::clap_app;
 
-fn handle_install_command(platform: Option<&str>) -> i32
+fn handle_install_command(platform: Option<&str>, generator: Option<&str>) -> i32
 {
-    match installer::install(platform)
+    match installer::install(platform, generator)
     {
         Err(e) =>
         {
@@ -162,6 +162,7 @@ fn main() {
         (about: "The easy C++ package manager built for BlockProject 3D")
         (@subcommand build =>
             (about: "Run automated build using CMake or Lua")
+            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
             (@arg configuration: "Specifies an optional configuration to build with.")
         )
         (@subcommand test =>
@@ -170,21 +171,23 @@ fn main() {
         (@subcommand package =>
             (about: "Run automated packaging using Lua")
             (@arg publish: --publish "Publish the package.")
-            (@arg registry: --registry -r "Specify the name of the registry to publish to.")
+            (@arg registry: +takes_value --registry -r "Specify the name of the registry to publish to.")
+            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
         )
         (@subcommand install =>
             (about: "Install all required dependencies and SDKs")
-            (@arg platform: "Specifies the platform to install packages for. By default relies on automatic platform detection. Only useful when building for cross-compile targets such as Android.")
+            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
+            (@arg generator: +takes_value -g --generator "Specifies the generator to use when generating build helper files")
         )
     ).get_matches();
 
-    if let Some(platform) = matches.subcommand_matches("install")
+    if let Some(matches) = matches.subcommand_matches("install")
     {
-        std::process::exit(handle_install_command(platform.value_of("platform")));
+        std::process::exit(handle_install_command(matches.value_of("platform"), matches.value_of("generator")));
     }
-    if let Some(config) = matches.subcommand_matches("build")
+    if let Some(matches) = matches.subcommand_matches("build")
     {
-        match config.value_of("configuration")
+        match matches.value_of("configuration")
         {
             Some(v) => std::process::exit(handle_build_command(v)),
             None => std::process::exit(handle_build_command("debug"))
