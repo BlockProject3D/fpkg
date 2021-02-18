@@ -39,6 +39,7 @@ use crate::generator::BuildGenerator;
 use crate::generator::Target;
 use crate::generator::Library;
 use crate::profile::Profile;
+use crate::profile::ProfileManager;
 use crate::builder;
 use crate::common::Result;
 use crate::common::Error;
@@ -50,26 +51,14 @@ use crate::settings::RegistryInfo;
 use crate::registry::open_package_registry;
 use crate::common::read_property_map;
 
-/*fn run_lua_install(file: &mut LuaFile, profile: &Profile) -> Result<Option<Vec<String>>>
-{
-    if file.has_func_install()
-    {
-        return file.func_install(&profile);
-    }
-    else
-    {
-        return Ok(None);
-    }
-}*/
-
 fn check_file_name_match(profile: &Profile, file_name: &str) -> bool
 {
     //File format: build-Platform-Arch-CompilerName-CompilerVersion.bpx
     let components = &file_name[0..file_name.len() - 4].split('-').collect::<Vec<&str>>();
-    let platform = profile.get("Platform").unwrap();
-    let arch = profile.get("Arch").unwrap();
-    let compiler = profile.get("CompilerName").unwrap();
-    let version = profile.get("CompilerVersion").unwrap();
+    let platform = &profile.platform;
+    let arch = &profile.architecture;
+    let compiler = &profile.compiler_name;
+    let version = &profile.compiler_version;
 
     if components.len() != 5 || &components[0] != &"build" || &components[1] != platform
         || &components[2] != arch || &components[3] != compiler
@@ -104,34 +93,14 @@ fn check_file_name_match(profile: &Profile, file_name: &str) -> bool
 
 fn build_package_info(obj: &sd::Object) -> Result<json::object::Object>
 {
+    let profile = Profile::from_bpxsd(&obj)?;
     let mut j = json::object::Object::new();
-    if let (Some(platform), Some(arch), Some(cname),
-            Some(cversion), Some(name), Some(version),
-            Some(typeafs), Some(desc))
-            = (obj.get("Platform"), obj.get("Arch"), obj.get("CompilerName"),
-               obj.get("CompilerVersion"), obj.get("Name"), obj.get("Version"),
-               obj.get("Type"), obj.get("Description"))
+    j.insert("Platform", json::JsonValue::String(profile.platform.clone()));
+    j.insert("Architecture", json::JsonValue::String(profile.architecture.clone()));
+    j.insert("CompilerName", json::JsonValue::String(profile.compiler_name.clone()));
+    j.insert("CompilerVersion", json::JsonValue::String(profile.compiler_version.clone()));
+    if let (Some(name), Some(version), Some(typeafs), Some(desc)) = (obj.get("Name"), obj.get("Version"), obj.get("Type"), obj.get("Description"))
     {
-        match platform
-        {
-            sd::Value::String(s) => j.insert("Platform", json::JsonValue::String(s.clone())),
-            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Platform'")))
-        };
-        match arch
-        {
-            sd::Value::String(s) => j.insert("Arch", json::JsonValue::String(s.clone())),
-            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'Arch'")))
-        };
-        match cname
-        {
-            sd::Value::String(s) => j.insert("CompilerName", json::JsonValue::String(s.clone())),
-            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'CompilerName'")))
-        };
-        match cversion
-        {
-            sd::Value::String(s) => j.insert("CompilerVersion", json::JsonValue::String(s.clone())),
-            _ => return Err(Error::Generic(ErrorDomain::Installer, format!("Incorrect type for key 'CompilerVersion'")))
-        };
         match name
         {
             sd::Value::String(s) => j.insert("Name", json::JsonValue::String(s.clone())),
@@ -154,7 +123,7 @@ fn build_package_info(obj: &sd::Object) -> Result<json::object::Object>
         };
         return Ok(j);
     }
-    return Err(Error::Generic(ErrorDomain::Installer, String::from("Missing some required properties in BPX package")));
+    return Err(Error::Generic(ErrorDomain::Installer, String::from("BPX Error: missing package header metadata (name, type, version and description)")));
 }
 
 fn unpack_bpx(file: &Path, folder: &Path) -> Result<()>
@@ -181,8 +150,9 @@ fn unpack_bpx(file: &Path, folder: &Path) -> Result<()>
     return Ok(());
 }
 
-fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<RegistryInfo>) -> Result<()>
+fn install_dependency(dep: &Dependency, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>) -> Result<()>
 {
+    let profile = profilemgr.get_current()?;
     println!("Installing dependency {} - {}...", &dep.name, &dep.version);
     for registry_info in registries
     {
@@ -195,7 +165,10 @@ fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<Regi
                 {
                     if check_file_name_match(&profile, &file_name)
                     {
-                        let folder = profile.get_platform_path().join(Path::new(&dep.name));
+                        //TODO: Implement profile based verification to ensure package compatibility
+                        //   Needs profile to generate package names after build prefix
+                        //   Needs profile to use BPX hashes in order to build directly from a BPXSD Object
+                        let folder = profilemgr.get_toolchain_path().join(Path::new(&dep.name));
                         if !folder.exists()
                         {
                             if let Err(e) = fs::create_dir(&folder)
@@ -217,9 +190,10 @@ fn install_dependency(dep: &Dependency, profile: &Profile, registries: &Vec<Regi
     return Err(Error::Generic(ErrorDomain::Installer, format!("Could not find dependency {} in any registry", &dep.name)));
 }
 
-fn is_dependency_installed(dep: &Dependency, profile: &Profile) -> Result<bool>
+fn is_dependency_installed(dep: &Dependency, profilemgr: &ProfileManager) -> Result<bool>
 {
-    let package_dir = profile.get_platform_path().join(Path::new(&dep.name));
+    let profile = profilemgr.get_current()?;
+    let package_dir = profilemgr.get_toolchain_path().join(Path::new(&dep.name));
     let path = package_dir.join("package-info.json");
     let mut map = HashMap::new();
     if !path.exists()
@@ -227,9 +201,9 @@ fn is_dependency_installed(dep: &Dependency, profile: &Profile) -> Result<bool>
         return Ok(false);
     }
     read_property_map(&path, &mut map)?;
-    if &map["Platform"] != profile.get("Platform").unwrap()
-        || &map["Arch"] != profile.get("Arch").unwrap()
-        || &map["CompilerName"] != profile.get("CompilerName").unwrap()
+    if &map["Platform"] != &profile.platform
+        || &map["Architecture"] != &profile.architecture
+        || &map["CompilerName"] != &profile.compiler_name
         || &map["Name"] != &dep.name
     {
         //Package is corrupted clear directory
@@ -325,9 +299,9 @@ fn call_generator_lib(package_dir: &Path, package_name: &str, generator: &mut Bo
     return Ok(());
 }
 
-fn call_generator(profile: &Profile, dep: &Dependency, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
+fn call_generator(profilemgr: &ProfileManager, dep: &Dependency, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
 {
-    let package_dir = profile.get_platform_path().join(Path::new(&dep.name));
+    let package_dir = profilemgr.get_toolchain_path().join(Path::new(&dep.name));
     let path = package_dir.join("package-info.json");
     let mut map = HashMap::new();
     read_property_map(&path, &mut map)?;
@@ -342,18 +316,18 @@ fn call_generator(profile: &Profile, dep: &Dependency, generator: &mut Box<dyn B
     return Ok(());
 }
 
-fn install_depenedencies(file: &mut LuaFile, profile: &Profile, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
+fn install_depenedencies(file: &mut LuaFile, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
 {
     let package = file.read_table()?;
     if let Some(deps) = package.dependencies
     {
         for dep in deps
         {
-            if !is_dependency_installed(&dep, &profile)?
+            if !is_dependency_installed(&dep, &profilemgr)?
             {
-                install_dependency(&dep, &profile, &registries)?;
+                install_dependency(&dep, &profilemgr, &registries)?;
             }
-            call_generator(&profile, &dep, generator)?;
+            call_generator(&profilemgr, &dep, generator)?;
         }
     }
     generator.generate()?;
@@ -364,22 +338,24 @@ fn install_sub_directory(path: &Path, platform: Option<&str>, generator_name: &s
 {
     let settings = Settings::new()?;
     let mut res = Vec::new();
-    let mut profile = Profile::new(path)?;
+    let mut profilemgr = ProfileManager::new(path)?;
     let registries = settings.get_registries();
-    let mut generator = match create_generator(&generator_name, profile.get_path(), profile.get_platform())?
+    let mut generator = match create_generator(&generator_name, profilemgr.get_base_path(), profilemgr.get_toolchain())?
     {
         Some(v) => v,
         None => return Err(Error::Generic(ErrorDomain::Installer, format!("No generator named {} found", generator_name)))
     };
 
-    if let Some(p) = platform
+    /*if let Some(p) = platform
     {
         profile.set_platform(p)?;
-    }
-    profile.install()?;
+    }*/
+    //TODO: Allow lua a chance to configure the toolchain
+    profilemgr.install("host", None)?;
     let path = Path::new(path).join("fpkg.lua");
     if path.exists()
     {
+        let profile = profilemgr.get_current()?;
         let mut file = LuaFile::new();
         file.open_libs()?;
         file.open(&path)?;
@@ -393,7 +369,7 @@ fn install_sub_directory(path: &Path, platform: Option<&str>, generator_name: &s
                 }
             }
         }
-        install_depenedencies(&mut file, &profile, &registries, &mut generator)?;
+        install_depenedencies(&mut file, &profilemgr, &registries, &mut generator)?;
         if file.has_func_install()
         {
             if let Some(props) = file.func_install(&profile)?

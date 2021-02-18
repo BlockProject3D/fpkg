@@ -65,6 +65,8 @@ mod gitlabregistry;
 mod cmakebuilder;
 mod generator;
 mod cmakegenerator;
+mod toolchain;
+mod hosttoolchain;
 
 use std::path::Path;
 use clap::clap_app;

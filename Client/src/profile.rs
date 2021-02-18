@@ -1,4 +1,4 @@
-// Copyright (c) 2020, BlockProject 3D
+// Copyright (c) 2021, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -32,12 +32,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::fs;
 use std::io;
+use std::boxed::Box;
 
-use crate::command;
 use crate::common::Result;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::read_property_map;
+use crate::toolchain::create_toolchain;
+use crate::toolchain::Toolchain;
 
 #[cfg(windows)]
 use winapi::um::fileapi;
@@ -46,79 +48,109 @@ use winapi::um::winnt::FILE_ATTRIBUTE_HIDDEN;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 
-const CROSS_PLATFORMS: [&'static str; 2] = ["host", "android"];
+fn hash_check_key(map: &mut HashMap<String, String>, key_name: &str) -> Result<String>
+{
+    return match map.remove(key_name)
+    {
+        None => Err(Error::Generic(ErrorDomain::Profile, format!("Missing key {} from profile", key_name))),
+        Some(v) => Ok(v)
+    };
+}
+
+fn bpx_check_key(map: &bpx::sd::Object, key_name: &str) -> Result<String>
+{
+    return match map.get(key_name)
+    {
+        None => Err(Error::Generic(ErrorDomain::Profile, format!("Missing key {} from profile", key_name))),
+        Some(v) =>
+        {
+            return match v
+            {
+                bpx::sd::Value::String(v) => Ok(v.clone()),
+                _ => Err(Error::Generic(ErrorDomain::Profile, format!("Bad type for key {}", key_name)))
+            };
+        }
+    };
+}
 
 pub struct Profile
 {
-    path: PathBuf,
-    data: HashMap<String, String>,
-    platform: String
-}
-
-fn find_compiler_info() -> Result<(String, String)>
-{
-    println!("Reading compiler information...");
-    let dir = match tempfile::tempdir()
-    {
-        Ok(v) => v,
-        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
-    };
-    let content =
-    "
-        cmake_minimum_required(VERSION 3.10)
-        project(DetectCompiler)
-
-        function(FixedMessage)
-            execute_process(COMMAND ${CMAKE_COMMAND} -E echo \"${ARGN}\")
-        endfunction()
-
-        FixedMessage(${CMAKE_CXX_COMPILER_ID})
-        FixedMessage(${CMAKE_CXX_COMPILER_VERSION})
-    ";
-    if let Err(e) = fs::write(&dir.path().join("CMakeLists.txt"), content)
-    {
-        return Err(Error::Io(ErrorDomain::Profile, e));
-    }
-    let s = match command::run_command_with_output("cmake", &["-S", &dir.path().to_string_lossy(), "-B", &dir.path().to_string_lossy()])
-    {
-        Ok(v) => v,
-        Err(e) => return Err(Error::Io(ErrorDomain::Profile, e))
-    };
-    let mut compiler = "";
-    let mut version = "";
-    let lines = s.split("\n");
-    for l in lines
-    {
-        if l.starts_with("--")
-        {
-            continue;
-        }
-        if compiler == ""
-        {
-            compiler = l;
-        }
-        else if version == ""
-        {
-            version = l;
-        }
-        else
-        {
-            break;
-        }
-    }
-    if compiler == "" || version == ""
-    {
-        return Err(Error::Generic(ErrorDomain::Profile, String::from("Unable to read compiler information")));
-    }
-    println!("Found compiler {} ({})", compiler, version);
-    return Ok((String::from(compiler), String::from(version)));
+    pub compiler_name: String,
+    pub compiler_version: String,
+    pub platform: String,
+    pub architecture: String
 }
 
 impl Profile
 {
+    pub fn from_bpxsd(obj: &bpx::sd::Object) -> Result<Profile>
+    {
+        let p = Profile
+        {
+            compiler_name: bpx_check_key(obj, "CompilerName")?,
+            compiler_version: bpx_check_key(obj, "CompilerVersion")?,
+            platform: bpx_check_key(obj, "Platform")?,
+            architecture: bpx_check_key(obj, "Arch")?
+        };
+        return Ok(p);
+    }
+
+    pub fn from_file(path: &Path) -> Result<Profile>
+    {
+        let mut map = HashMap::new();
+        read_property_map(&path, &mut map)?;
+        let p = Profile
+        {
+            compiler_name: hash_check_key(&mut map, "CompilerName")?,
+            compiler_version: hash_check_key(&mut map, "CompilerVersion")?,
+            platform: hash_check_key(&mut map, "Platform")?,
+            architecture: hash_check_key(&mut map, "Arch")?
+        };
+        return Ok(p);
+    }
+
+    pub fn to_file(&self, path: &Path) -> io::Result<()>
+    {
+        let mut json = json::JsonValue::new_object();
+        json["CompilerName"] = json::JsonValue::String(self.compiler_name.clone());
+        json["CompilerVersion"] = json::JsonValue::String(self.compiler_version.clone());
+        json["Platform"] = json::JsonValue::String(self.platform.clone());
+        json["Arch"] = json::JsonValue::String(self.architecture.clone());
+        fs::write(path, json.dump())?;
+        return Ok(());
+    }
+
+    pub fn fill_structured_data(&self, obj: &mut bpx::sd::Object)
+    {
+        obj.set("CompilerName", bpx::sd::Value::String(self.compiler_name.clone()));
+        obj.set("CompilerVersion", bpx::sd::Value::String(self.compiler_version.clone()));
+        obj.set("Platform", bpx::sd::Value::String(self.platform.clone()));
+        obj.set("Arch", bpx::sd::Value::String(self.architecture.clone()));
+    }
+
+    pub fn fill_table(&self, table: &mut rlua::Table) -> rlua::Result<()>
+    {
+        //Annoying peace of shit RLua is unable to take Strings!
+        table.set("CompilerName", self.compiler_name.as_str())?;
+        table.set("CompilerVersion", self.compiler_version.as_str())?;
+        table.set("Platform", self.platform.as_str())?;
+        table.set("Architecture", self.architecture.as_str())?;
+        return Ok(());
+    }
+}
+
+pub struct ProfileManager
+{
+    path: PathBuf,
+    toolchain_name: String,
+    current_profile: Option<Profile>
+}
+
+impl ProfileManager
+{
     fn mkdir(&self) -> io::Result<()>
     {
-        let toolchain = self.path.join(Path::new(&self.platform));
+        let toolchain = self.path.join(Path::new(&self.toolchain_name));
 
         if !self.path.exists()
         {
@@ -137,168 +169,85 @@ impl Profile
         return Ok(());
     }
 
-    pub fn new(path: &Path) -> Result<Profile>
+    pub fn new(path: &Path) -> Result<ProfileManager>
     {
-        let mut map = HashMap::new();
         let p = path.join(Path::new(".fpkg/host/profile"));
+        let mut profile = None;
 
-        if p.exists() {
-            read_property_map(&p, &mut map)?;
+        if p.exists()
+        {
+            profile = Some(Profile::from_file(&p)?);
         }
-        return Ok(Profile
+        return Ok(ProfileManager
         {
             path: path.join(".fpkg"),
-            data: map,
-            platform: String::from("host")
+            toolchain_name: String::from("host"),
+            current_profile: profile
         });
     }
 
-    pub fn get_platform_path(&self) -> PathBuf
+    pub fn get_current(&self) -> Result<&Profile>
     {
-        return self.path.join(Path::new(&self.platform));
+        match &self.current_profile
+        {
+            None => return Err(Error::Generic(ErrorDomain::Profile, String::from("The current profile is not initialized"))),
+            Some(v) => return Ok(&v)
+        };
     }
 
-    pub fn get_path(&self) -> &Path
+    pub fn get_toolchain_path(&self) -> PathBuf
+    {
+        return self.path.join(Path::new(&self.toolchain_name));
+    }
+
+    pub fn get_base_path(&self) -> &Path
     {
         return &self.path;
     }
 
-    pub fn get_platform(&self) -> &str
+    pub fn get_toolchain(&self) -> &str
     {
-        return &self.platform;
+        return &self.toolchain_name;
     }
 
     pub fn exists(&self) -> bool
     {
-        return self.get_platform_path().join("profile").exists();
-    }
-
-    pub fn get(&self, name: &str) -> Option<&String>
-    {
-        return self.data.get(&String::from(name));
+        return self.current_profile.is_some();
     }
 
     pub fn write(&self) -> io::Result<()>
     {
-        let mut json = json::JsonValue::new_object();
-
-        for (k, v) in &self.data
+        if let Some(profile) = &self.current_profile
         {
-            json[k] = json::JsonValue::String(v.to_string());
-        }
-        fs::write(&self.get_platform_path().join("profile"), json.dump())?;
-        return Ok(());
-    }
-
-    pub fn fill_table(&self, table: &mut rlua::Table) -> rlua::Result<()>
-    {
-        for (k, v) in self.data.iter()
-        {
-            table.set(k.as_str(), v.as_str())?; //Annoying peace of shit RLua is unable to take Strings!
+            return profile.to_file(&self.get_toolchain_path().join("profile"));
         }
         return Ok(());
     }
 
-    pub fn fill_structured_data(&self, obj: &mut bpx::sd::Object)
+    pub fn install(&mut self, toolchain: &str, toolchain_props: Option<HashMap<String, String>>) -> Result<Box<dyn Toolchain>>
     {
-        for (k, v) in self.data.iter()
+        if self.exists()
         {
-            obj.set(k, bpx::sd::Value::String(v.clone()));
+            //TODO: diagnose why this crap always keep rethrowing instead of continuing to the dependency resolver
+            return Err(Error::Generic(ErrorDomain::Profile, String::from("The current profile has already been installed")));
         }
-    }
-
-    //Sets the name of the current platform
-    pub fn set_platform(&mut self, name: &str) -> Result<()>
-    {
-        for v in &CROSS_PLATFORMS
+        if let Err(e) = self.mkdir()
         {
-            if &name == v
-            {
-                self.platform = String::from(name);
-                let path = self.get_platform_path().join("profile");
-                if path.exists()
-                {
-                    let mut map = HashMap::new();
-                    read_property_map(&path, &mut map)?;
-                    self.data = map;
-                }
-                else
-                {
-                    self.data = HashMap::new();
-                }
-                return Ok(());
-            }
+            return Err(Error::Io(ErrorDomain::Profile, e));
         }
-        return Err(Error::Generic(ErrorDomain::Profile, format!("Unknown cross-compile target platform: {}", name)));
-    }
-
-    pub fn install(&mut self) -> Result<()>
-    {
-        if !self.exists()
+        let mut toolchain = match create_toolchain(toolchain, toolchain_props)?
         {
-            if let Err(e) = self.mkdir()
-            {
-                return Err(Error::Io(ErrorDomain::Profile, e));
-            }
-            if &self.platform == "host"
-            {
-                self.regenerate_self()?;
-            }
-            else
-            {
-                self.regenerate_cross()?;
-            }
-            if let Err(e) = self.write()
-            {
-                return Err(Error::Io(ErrorDomain::Profile, e));
-            }
-        }
-        return Ok(());
-    }
-
-    fn regenerate_cross(&mut self) -> Result<()> //Regenerate profile for cross-compiled target platform
-    {
-        return Err(Error::Generic(ErrorDomain::Profile, String::from("Cross-compiled target platforms are currently not supported")));
-    }
-
-    fn regenerate_self(&mut self) -> Result<()> //Regenerate profile for host target platform
-    {
-        if cfg!(target_os = "windows")
+            None => return Err(Error::Generic(ErrorDomain::Profile, format!("Unknown toolchain name: {}", toolchain))),
+            Some(v) => v
+        };
+        let profile = toolchain.create_profile()?;
+        println!("Identified platform as {} {}", profile.platform, profile.architecture);
+        println!("Found compiler {} ({})", profile.compiler_name, profile.compiler_version);
+        self.current_profile = Some(profile);
+        if let Err(e) = self.write()
         {
-            self.data.insert(String::from("Platform"), String::from("Windows"));
+            return Err(Error::Io(ErrorDomain::Profile, e));
         }
-        else if cfg!(target_os = "macos")
-        {
-            self.data.insert(String::from("Platform"), String::from("OSX"));
-        }
-        else if cfg!(target_os = "linux")
-        {
-            self.data.insert(String::from("Platform"), String::from("Linux"));
-        }
-        else if cfg!(target_os = "android")
-        {
-            self.data.insert(String::from("Platform"), String::from("Android"));
-        }
-        if cfg!(target_arch = "x86")
-        {
-            self.data.insert(String::from("Arch"), String::from("x86"));
-        }
-        else if cfg!(target_arch = "x86_64")
-        {
-            self.data.insert(String::from("Arch"), String::from("x86_64"));
-        }
-        else if cfg!(target_arch = "arm")
-        {
-            self.data.insert(String::from("Arch"), String::from("arm"));
-        }
-        else if cfg!(target_arch = "aarch64")
-        {
-            self.data.insert(String::from("Arch"), String::from("aarch64"));
-        }
-        println!("Identified platform as {} {}", self.data.get("Platform").unwrap(), self.data.get("Arch").unwrap());
-        let (name, version) = find_compiler_info()?;
-        self.data.insert(String::from("CompilerName"), name);
-        self.data.insert(String::from("CompilerVersion"), version);
-        return Ok(());
+        return Ok(toolchain);
     }
 }

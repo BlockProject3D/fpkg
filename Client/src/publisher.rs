@@ -31,7 +31,7 @@ use std::path::PathBuf;
 use std::string::String;
 
 use crate::luaengine::LuaFile;
-use crate::profile::Profile;
+use crate::profile::ProfileManager;
 use crate::settings::Settings;
 use crate::common::Error;
 use crate::common::ErrorDomain;
@@ -43,11 +43,12 @@ use crate::packager::get_pk_file;
 pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
 {
     let settings = Settings::new()?;
-    let profile = Profile::new(path)?;
-    if !profile.exists()
+    let profilemgr = ProfileManager::new(path)?;
+    if !profilemgr.exists()
     {
         return Err(Error::Generic(ErrorDomain::Publisher, String::from("Unable to load project profile; did you forget to run fpkg install?")));
     }
+    let profile = profilemgr.get_current()?;
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();
     lua.open_libs()?;

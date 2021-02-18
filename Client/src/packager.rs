@@ -39,6 +39,7 @@ use crate::luaengine::Target;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
+use crate::profile::ProfileManager;
 use crate::profile::Profile;
 use crate::builder::check_build_configuration;
 
@@ -47,13 +48,13 @@ pub fn get_pk_file(profile: &Profile) -> String
     //Format = build-<name of platform>-<architecture>-<compiler id>-<compiler version>.bpx
     let mut s = String::from("build-");
 
-    s.push_str(profile.get("Platform").unwrap());
+    s.push_str(&profile.platform);
     s.push('-');
-    s.push_str(profile.get("Arch").unwrap());
+    s.push_str(&profile.architecture);
     s.push('-');
-    s.push_str(profile.get("CompilerName").unwrap());
+    s.push_str(&profile.compiler_name);
     s.push('-');
-    s.push_str(profile.get("CompilerVersion").unwrap());
+    s.push_str(&profile.compiler_version);
     s.push_str(".bpx");
     return s;
 }
@@ -138,8 +139,8 @@ fn pack_framework(bpx: &mut bpxp::Encoder, target: &Target) -> Result<()>
 
 fn set_type_ext(bpx: &mut bpxp::Encoder, profile: &Profile)
 {
-    let platform = profile.get("Platform").unwrap();
-    let arch = profile.get("Arch").unwrap();
+    let platform = &profile.platform;
+    let arch = &profile.architecture;
 
     if platform == "Linux"
     {
@@ -177,11 +178,12 @@ fn set_type_ext(bpx: &mut bpxp::Encoder, profile: &Profile)
 
 pub fn package(path: &Path) -> Result<i32>
 {
-    let profile = Profile::new(path)?;
-    if !profile.exists()
+    let profilemgr = ProfileManager::new(path)?;
+    if !profilemgr.exists()
     {
         return Err(Error::Generic(ErrorDomain::Packager, String::from("Unable to load project profile; did you forget to run fpkg install?")));
     }
+    let profile = profilemgr.get_current()?;
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();
     lua.open_libs()?;

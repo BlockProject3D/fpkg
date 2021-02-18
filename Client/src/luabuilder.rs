@@ -34,6 +34,7 @@ use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
+use crate::profile::ProfileManager;
 use crate::luaengine::Compiler;
 use crate::luaengine::LuaFile;
 use crate::builder::check_build_configuration;
@@ -45,7 +46,7 @@ fn check_system(profile: &Profile, systems: &Option<Vec<String>>) -> Result<()>
         None => return Ok(()),
         Some(v) =>
         {
-            let platform = profile.get("Platform").unwrap();
+            let platform = &profile.platform;
             if !v.iter().any(|e| e == platform)
             {
                 return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported platform {}", platform)));
@@ -62,7 +63,7 @@ fn check_arch(profile: &Profile, archs: &Option<Vec<String>>) -> Result<()>
         None => return Ok(()),
         Some(v) =>
         {
-            let arch = profile.get("Arch").unwrap();
+            let arch = &profile.architecture;
             if !v.iter().any(|e| e == arch)
             {
                 return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported acrhitecture {}", arch)));
@@ -110,12 +111,12 @@ fn check_compiler(profile: &Profile, compilers: &Option<Vec<Compiler>>) -> Resul
         None => return Ok(()),
         Some(v) =>
         {
-            let compiler = profile.get("CompilerName").unwrap();
-            let version = profile.get("CompilerVersion").unwrap();
+            let compiler = &profile.compiler_name;
+            let version = &profile.compiler_version;
             match v.iter().find(|v| &v.name == compiler)
             {
                 None => return Err(Error::Generic(ErrorDomain::Builder, format!("Unsupported compiler"))),
-                Some(cfg) => return check_compiler_version(version, cfg)
+                Some(cfg) => return check_compiler_version(&version, cfg)
             }
         }
     }
@@ -142,11 +143,12 @@ impl Builder for LuaBuilder
 
     fn run_build(&self, config: &str, path: &Path) -> Result<i32>
     {
-        let profile = Profile::new(path)?;
-        if !profile.exists()
+        let profilemgr = ProfileManager::new(path)?;
+        if !profilemgr.exists()
         {
             return Err(Error::Generic(ErrorDomain::Builder, String::from("Unable to load project profile; did you forget to run fpkg install?")))
         }
+        let profile = profilemgr.get_current()?;
         let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
         let mut lua = LuaFile::new();
         lua.open_libs()?;
