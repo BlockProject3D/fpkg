@@ -359,15 +359,15 @@ fn install_sub_directory(path: &Path, platform: Option<&str>, generator_name: &s
         let mut file = LuaFile::new();
         file.open_libs()?;
         file.open(&path)?;
-        if file.has_func_get_sub_projects()
+        if file.has_func_configure()
         {
-            if let Some(subprojects) = file.func_get_sub_projects(&profile)?
-            {
+            /*let (subprojects, props) = */file.func_configure(&profilemgr)?;
+            /*{
                 for path in subprojects
                 {
                     res.push(path);
                 }
-            }
+            }*/
         }
         install_depenedencies(&mut file, &profilemgr, &registries, &mut generator)?;
         if file.has_func_install()

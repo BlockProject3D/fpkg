@@ -29,6 +29,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 use rlua::Lua;
+use rlua::UserData;
+use rlua::UserDataMethods;
 use std::fs;
 use std::string::String;
 use std::vec::Vec;
@@ -39,6 +41,7 @@ use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
+use crate::profile::ProfileManager;
 
 pub struct Compiler
 {
@@ -153,6 +156,65 @@ pub struct Target
     pub includes: Option<Vec<ConfiguredTarget>>,
     pub binaries: Option<Vec<ConfiguredTarget>>,
     pub content: Option<Vec<String>>
+}
+
+pub struct PackageConfig
+{
+    toolchain_name: String,
+    pub subprojects: Vec<String>,
+    pub props: HashMap<String, String>
+}
+
+impl PackageConfig
+{
+    pub fn new(profilemgr: &ProfileManager) -> PackageConfig
+    {
+        return PackageConfig
+        {
+            toolchain_name: String::from(profilemgr.get_toolchain()),
+            subprojects: Vec::new(),
+            props: HashMap::new()
+        };
+    }
+
+    pub fn empty() -> PackageConfig
+    {
+        return PackageConfig
+        {
+            toolchain_name: String::new(),
+            subprojects: Vec::new(),
+            props: HashMap::new()
+        };
+    }
+}
+
+impl UserData for PackageConfig
+{
+    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
+    {
+        methods.add_method_mut("SubProject", |_, this, path: String|
+        {
+            this.subprojects.push(path);
+            return Ok(());
+        });
+        methods.add_method_mut("SetProp", |_, this, (key, val): (String, String)|
+        {
+            this.props.insert(key, val);
+            return Ok(());
+        });
+        methods.add_method("GetProp", |_, this, key: String|
+        {
+            return match this.props.get(&key)
+            {
+                Some(v) => Ok(Some(v.clone())),
+                None => Ok(None)
+            };
+        });
+        methods.add_method("GetToolchain", |_, this, ()|
+        {
+            return Ok(this.toolchain_name.clone());
+        });
+    }
 }
 
 pub struct LuaFile
@@ -307,11 +369,11 @@ impl LuaFile
         }
     }
 
-    pub fn has_func_get_sub_projects(&self) -> bool
+    pub fn has_func_configure(&self) -> bool
     {
         let res = self.state.context(|ctx|
         {
-            return ctx.globals().contains_key("GetSubProjects");
+            return ctx.globals().contains_key("Configure");
         });
         match res
         {
@@ -355,20 +417,19 @@ impl LuaFile
         }
     }
 
-    pub fn func_get_sub_projects(&mut self, profile: &Profile) -> Result<Option<Vec<String>>>
+    pub fn func_configure(&mut self, profilemgr: &ProfileManager) -> Result<PackageConfig>
     {
         let res = self.state.context(|ctx|
         {
-            let mut tbl = ctx.create_table()?;
-            profile.fill_table(&mut tbl)?;
-            let func: rlua::Function = ctx.globals().get("GetSubProjects")?;
-            let res: Option<Vec<String>> = func.call(tbl)?;
-
-            match res
+            let userdata = ctx.scope(|scope|
             {
-                Some(v) => return Ok(Some(v)),
-                None => return Ok(None)
-            }
+                let userdata = scope.create_static_userdata(PackageConfig::new(profilemgr))?;
+                let func: rlua::Function = ctx.globals().get("Configure")?;
+                func.call(userdata)?;
+                return Ok(userdata);
+            })?;
+            let data = std::mem::replace(&mut userdata.borrow_mut()?, PackageConfig::empty());
+            return Ok(data);
         });
         match res
         {
