@@ -41,7 +41,8 @@ pub enum ErrorDomain
     LuaEngine,
     Settings,
     Registry,
-    Generator
+    Generator,
+    Toolchain
 }
 
 pub enum Error
