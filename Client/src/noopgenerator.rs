@@ -26,55 +26,40 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::path::Path;
 use std::boxed::Box;
-use std::string::String;
-use std::vec::Vec;
-use std::collections::HashMap;
+use std::path::Path;
 
 use crate::common::Result;
-use crate::cmakegenerator::CMakeGeneratorProvider;
-use crate::noopgenerator::NoOpGeneratorProvider;
+use crate::generator::Library;
+use crate::generator::BuildGenerator;
+use crate::generator::BuildGeneratorProvider;
 
-#[derive(Clone)]
-pub struct Target
-{
-    pub relative_path: String,
-    pub configuration: String
-}
+struct NoOpGenerator {}
 
-//Stores information about a single library with only paths relative to the base_folder
-pub struct Library
+impl BuildGenerator for NoOpGenerator
 {
-    pub binaries: Vec<Target>,
-    pub include_dirs: Vec<Target>
-}
-
-//The package_name is the name of the package and corresponds to the name of the folder
-//which should contain the unpacked package (including package-info.json)
-pub trait BuildGenerator
-{
-    fn add_library(&mut self, package_name: &str, lib: Library) -> Result<()>;
-    fn add_framework(&mut self, package_name: &str) -> Result<()>;
-    fn generate(&mut self) -> Result<()>;
-}
-
-pub trait BuildGeneratorProvider
-{
-    fn new(&self, base_folder: &Path, toolchain_name: &str) -> Result<Box<dyn BuildGenerator>>;
-}
-
-//The base_folder is the path to the root folder of FPKG (usually ./.fpkg)
-//The toolchain_name is the name of the folder for the current toolchain
-pub fn create_generator(generator_name: &str, base_folder: &Path, toolchain_name: &str) -> Result<Option<Box<dyn BuildGenerator>>>
-{
-    let mut v: HashMap<&str, Box<dyn BuildGeneratorProvider>> = HashMap::new();
-    v.insert("cmake", Box::new(CMakeGeneratorProvider {}));
-    v.insert("noop", Box::new(NoOpGeneratorProvider {}));
-    if let Some(g) = v.remove(generator_name)
+    fn add_library(&mut self, _: &str, _: Library) -> Result<()>
     {
-        let generator = g.new(base_folder, toolchain_name)?;
-        return Ok(Some(generator));
+        return Ok(());
     }
-    return Ok(None);
+
+    fn add_framework(&mut self, _: &str) -> Result<()>
+    {
+        return Ok(());
+    }
+
+    fn generate(&mut self) -> Result<()>
+    {
+        return Ok(());
+    }
+}
+
+pub struct NoOpGeneratorProvider {}
+
+impl BuildGeneratorProvider for NoOpGeneratorProvider
+{
+    fn new(&self, _: &Path, _: &str) -> Result<Box<dyn BuildGenerator>>
+    {
+        return Ok(Box::new(NoOpGenerator {}));
+    }
 }

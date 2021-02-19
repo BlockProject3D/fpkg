@@ -35,13 +35,13 @@ use std::fs;
 use std::string::String;
 use std::vec::Vec;
 use rlua::FromLua;
+use core::cell::RefMut;
 
 use crate::command;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
-use crate::profile::ProfileManager;
 
 pub struct Compiler
 {
@@ -79,33 +79,6 @@ pub struct Dependency
 {
     pub name: String,
     pub version: String
-}
-
-impl FromLua<'_> for Dependency
-{
-    fn from_lua(val: rlua::Value<'_>, _: rlua::Context<'_>) -> std::result::Result<Self, rlua::Error>
-    {
-        if let rlua::Value::Table(table) = val
-        {
-            let name: String = table.get("Name")?;
-            let version: Option<String> = table.get("Version")?;
-            return Ok(Dependency
-            {
-                name: name,
-                version: match version
-                {
-                    Some(v) => v,
-                    None => String::from("latest")
-                }
-            });
-        }
-        return Err(rlua::Error::FromLuaConversionError
-        {
-            from: "Dependency",
-            to: "Dependency",
-            message: Some(String::from("Could not load table"))
-        });
-    }
 }
 
 pub struct ConfiguredTarget
@@ -146,8 +119,7 @@ pub struct PackageTable
     pub configurations: Option<Vec<String>>,
     pub systems: Option<Vec<String>>,
     pub architectures: Option<Vec<String>>,
-    pub compilers: Option<Vec<Compiler>>,
-    pub dependencies: Option<Vec<Dependency>>
+    pub compilers: Option<Vec<Compiler>>
 }
 
 pub struct Target
@@ -158,45 +130,28 @@ pub struct Target
     pub content: Option<Vec<String>>
 }
 
-pub struct PackageConfig
+struct ToolchainConfig
 {
     toolchain_name: String,
-    pub subprojects: Vec<String>,
-    pub props: HashMap<String, String>
+    props: HashMap<String, String>
 }
 
-impl PackageConfig
+impl ToolchainConfig
 {
-    pub fn new(profilemgr: &ProfileManager) -> PackageConfig
+    pub fn new(toolchain_name: &str) -> ToolchainConfig
     {
-        return PackageConfig
+        return ToolchainConfig
         {
-            toolchain_name: String::from(profilemgr.get_toolchain()),
-            subprojects: Vec::new(),
-            props: HashMap::new()
-        };
-    }
-
-    pub fn empty() -> PackageConfig
-    {
-        return PackageConfig
-        {
-            toolchain_name: String::new(),
-            subprojects: Vec::new(),
+            toolchain_name: String::from(toolchain_name),
             props: HashMap::new()
         };
     }
 }
 
-impl UserData for PackageConfig
+impl UserData for ToolchainConfig
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("SubProject", |_, this, path: String|
-        {
-            this.subprojects.push(path);
-            return Ok(());
-        });
         methods.add_method_mut("SetProp", |_, this, (key, val): (String, String)|
         {
             this.props.insert(key, val);
@@ -210,9 +165,55 @@ impl UserData for PackageConfig
                 None => Ok(None)
             };
         });
-        methods.add_method("GetToolchain", |_, this, ()|
+        methods.add_method("GetName", |_, this, ()|
         {
             return Ok(this.toolchain_name.clone());
+        });
+    }
+}
+
+struct InstallTool
+{
+    subprojects: Vec<String>,
+    dependencies: Vec<Dependency>,
+    generator: Option<String>
+}
+
+impl InstallTool
+{
+    pub fn new() -> InstallTool
+    {
+        return InstallTool
+        {
+            subprojects: Vec::new(),
+            dependencies: Vec::new(),
+            generator: None
+        };
+    }
+}
+
+impl UserData for &mut InstallTool
+{
+    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
+    {
+        methods.add_method_mut("AddSubProject", |_, this, path: String|
+        {
+            this.subprojects.push(path);
+            return Ok(());
+        });
+        methods.add_method_mut("AddDependency", |_, this, (name, version): (String, String)|
+        {
+            this.dependencies.push(Dependency
+            {
+                name: name,
+                version: version
+            });
+            return Ok(());
+        });
+        methods.add_method_mut("SetGenerator", |_, this, name: String|
+        {
+            this.generator = Some(name);
+            return Ok(());
         });
     }
 }
@@ -334,7 +335,6 @@ impl LuaFile
             let systems: Option<Vec<String>> = table.get("Platforms")?;
             let archs: Option<Vec<String>> = table.get("Archs")?;
             let compilers: Option<Vec<Compiler>> = table.get("Compilers")?;
-            let deps: Option<Vec<Dependency>> = table.get("Dependencies")?;
 
             return Ok(PackageTable
             {
@@ -344,8 +344,7 @@ impl LuaFile
                 configurations: configs,
                 systems: systems,
                 architectures: archs,
-                compilers: compilers,
-                dependencies: deps
+                compilers: compilers
             });
         });
 
@@ -395,40 +394,46 @@ impl LuaFile
         }
     }
 
-    pub fn func_install(&mut self, profile: &Profile) -> Result<Option<HashMap<String, String>>>
+    fn func_install_internal(&mut self, tool: &mut InstallTool, profile: &Profile) -> rlua::Result<()>
     {
-        let res = self.state.context(|ctx|
+        return self.state.context(|ctx|
         {
-            let mut tbl = ctx.create_table()?;
-            profile.fill_table(&mut tbl)?;
-            let func: rlua::Function = ctx.globals().get("Install")?;
-            let res: Option<HashMap<String, String>> = func.call(tbl)?;
-
-            match res
+            ctx.scope(|scope|
             {
-                Some(v) => return Ok(Some(v)),
-                None => return Ok(None)
-            }
+                let userdata = scope.create_nonstatic_userdata(tool)?;
+                let mut tbl = ctx.create_table()?;
+                profile.fill_table(&mut tbl)?;
+                let func: rlua::Function = ctx.globals().get("Install")?;
+                func.call((tbl, userdata))?;
+                return Ok(());
+            })?;
+            return Ok(());
         });
-        match res
-        {
-            Ok(v) => return Ok(v),
-            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
-        }
     }
 
-    pub fn func_configure(&mut self, profilemgr: &ProfileManager) -> Result<PackageConfig>
+    pub fn func_install(&mut self, profile: &Profile) -> Result<(Vec<String>, Vec<Dependency>, Option<String>)>
+    {
+        let mut tool = InstallTool::new();
+        if let Err(e) = self.func_install_internal(&mut tool, profile)
+        {
+            return Err(Error::Lua(ErrorDomain::LuaEngine, e));
+        }
+        return Ok((tool.subprojects, tool.dependencies, tool.generator));
+    }
+
+    pub fn func_configure(&mut self, toolchain_name: &str) -> Result<HashMap<String, String>>
     {
         let res = self.state.context(|ctx|
         {
             let userdata = ctx.scope(|scope|
             {
-                let userdata = scope.create_static_userdata(PackageConfig::new(profilemgr))?;
+                let userdata = scope.create_static_userdata(ToolchainConfig::new(toolchain_name))?;
                 let func: rlua::Function = ctx.globals().get("Configure")?;
-                func.call(userdata)?;
+                func.call(userdata.clone())?;
                 return Ok(userdata);
             })?;
-            let data = std::mem::replace(&mut userdata.borrow_mut()?, PackageConfig::empty());
+            let mut useless: RefMut<ToolchainConfig> = userdata.borrow_mut()?;
+            let data = std::mem::replace(&mut useless.props, HashMap::new());
             return Ok(data);
         });
         match res

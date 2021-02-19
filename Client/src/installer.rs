@@ -166,8 +166,6 @@ fn install_dependency(dep: &Dependency, profilemgr: &ProfileManager, registries:
                     if check_file_name_match(&profile, &file_name)
                     {
                         //TODO: Implement profile based verification to ensure package compatibility
-                        //   Needs profile to generate package names after build prefix
-                        //   Needs profile to use BPX hashes in order to build directly from a BPXSD Object
                         let folder = profilemgr.get_toolchain_path().join(Path::new(&dep.name));
                         if !folder.exists()
                         {
@@ -316,67 +314,69 @@ fn call_generator(profilemgr: &ProfileManager, dep: &Dependency, generator: &mut
     return Ok(());
 }
 
-fn install_depenedencies(file: &mut LuaFile, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
+fn install_depenedencies(dependencies: Vec<Dependency>, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
 {
-    let package = file.read_table()?;
-    if let Some(deps) = package.dependencies
+    for dep in dependencies
     {
-        for dep in deps
+        if !is_dependency_installed(&dep, &profilemgr)?
         {
-            if !is_dependency_installed(&dep, &profilemgr)?
-            {
-                install_dependency(&dep, &profilemgr, &registries)?;
-            }
-            call_generator(&profilemgr, &dep, generator)?;
+            install_dependency(&dep, &profilemgr, &registries)?;
         }
+        call_generator(&profilemgr, &dep, generator)?;
     }
     generator.generate()?;
     return Ok(());
 }
 
-fn install_sub_directory(path: &Path, platform: Option<&str>, generator_name: &str) -> Result<Vec<String>>
+fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
 {
     let settings = Settings::new()?;
     let mut res = Vec::new();
     let mut profilemgr = ProfileManager::new(path)?;
     let registries = settings.get_registries();
-    let mut generator = match create_generator(&generator_name, profilemgr.get_base_path(), profilemgr.get_toolchain())?
+    let path = Path::new(path).join("fpkg.lua");
+    let mut file = LuaFile::new();
+    let toolchain = match platform
     {
         Some(v) => v,
-        None => return Err(Error::Generic(ErrorDomain::Installer, format!("No generator named {} found", generator_name)))
+        None => "host"
     };
-
-    /*if let Some(p) = platform
+    file.open_libs()?;
+    file.open(&path)?;
+    let mut props = None;
+    if file.has_func_configure()
     {
-        profile.set_platform(p)?;
-    }*/
-    //TODO: Allow lua a chance to configure the toolchain
-    profilemgr.install("host", None)?;
-    let path = Path::new(path).join("fpkg.lua");
-    if path.exists()
+        props = Some(file.func_configure(toolchain)?);
+    }
+    profilemgr.install(toolchain, props)?;
+    let profile = profilemgr.get_current()?;
+    if file.has_func_install()
     {
-        let profile = profilemgr.get_current()?;
-        let mut file = LuaFile::new();
-        file.open_libs()?;
-        file.open(&path)?;
-        if file.has_func_configure()
+        let (subprojects, deps, generator_name) = file.func_install(&profile)?;
+        for path in subprojects
         {
-            /*let (subprojects, props) = */file.func_configure(&profilemgr)?;
-            /*{
-                for path in subprojects
-                {
-                    res.push(path);
-                }
-            }*/
+            res.push(path);
         }
-        install_depenedencies(&mut file, &profilemgr, &registries, &mut generator)?;
-        if file.has_func_install()
+        let mut generator = match generator_name
         {
-            if let Some(props) = file.func_install(&profile)?
+            None =>
             {
-                //TODO: Call toolchain generator if needed with the props obtained from here
+                match create_generator("noop", profilemgr.get_base_path(), profilemgr.get_toolchain())?
+                {
+                    Some(v) => v,
+                    None => return Err(Error::Generic(ErrorDomain::Installer, String::from("Missing base noop generator")))
+                }
+            },
+            Some(name) =>
+            {
+                match create_generator(&name, profilemgr.get_base_path(), profilemgr.get_toolchain())?
+                {
+                    Some(v) => v,
+                    None => return Err(Error::Generic(ErrorDomain::Installer, format!("No generator named {} found", name)))
+                }
             }
-        }
+        };
+        install_depenedencies(deps, &profilemgr, &registries, &mut generator)?;
     }
     return Ok(res);
 }
@@ -390,19 +390,14 @@ fn check_is_valid_project_dir(path: &Path) -> Result<()>
     return Ok(());
 }
 
-pub fn install(platform: Option<&str>, generator: Option<&str>) -> Result<()>
+pub fn install(platform: Option<&str>) -> Result<()>
 {
     let mut directories: Vec<String> = Vec::new();
     directories.push(String::from("."));
     while let Some(dir) = directories.pop()
     {
         check_is_valid_project_dir(Path::new(&dir))?;
-        let gname = match generator
-        {
-            Some(v) => v,
-            None => "cmake"
-        };
-        let subdirs = install_sub_directory(Path::new(&dir), platform, &gname)?;
+        let subdirs = install_sub_directory(Path::new(&dir), platform)?;
         for v in subdirs
         {
             directories.push(v);

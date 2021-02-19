@@ -49,31 +49,39 @@
 //  - Optionally a package can provide binarries for any other platform even Android
 //  - Any package that does not respect any of the previous requirements may still be published but not to the main registry
 //  - A package will be distributed as a compressed archive file containing builds for all configurations of a given platform.
-
-mod builder;
 mod command;
 mod profile;
 mod installer;
 mod luaengine;
-mod luabuilder;
 mod packager;
 mod publisher;
 mod common;
 mod settings;
+
+//Registry implementations
 mod registry;
 mod gitlabregistry;
+
+//Builder implementations
+mod builder;
+mod luabuilder;
 mod cmakebuilder;
+
+//Generator implementations
 mod generator;
 mod cmakegenerator;
+mod noopgenerator;
+
+//Toolchain implementations
 mod toolchain;
 mod hosttoolchain;
 
 use std::path::Path;
 use clap::clap_app;
 
-fn handle_install_command(platform: Option<&str>, generator: Option<&str>) -> i32
+fn handle_install_command(platform: Option<&str>) -> i32
 {
-    match installer::install(platform, generator)
+    match installer::install(platform)
     {
         Err(e) =>
         {
@@ -179,13 +187,12 @@ fn main() {
         (@subcommand install =>
             (about: "Install all required dependencies and SDKs")
             (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
-            (@arg generator: +takes_value -g --generator "Specifies the generator to use when generating build helper files")
         )
     ).get_matches();
 
     if let Some(matches) = matches.subcommand_matches("install")
     {
-        std::process::exit(handle_install_command(matches.value_of("platform"), matches.value_of("generator")));
+        std::process::exit(handle_install_command(matches.value_of("platform")));
     }
     if let Some(matches) = matches.subcommand_matches("build")
     {
