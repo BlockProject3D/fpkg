@@ -305,14 +305,41 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
+            let globals = ctx.globals();
+            //Blacklist start
+            let os = globals.get::<_, rlua::Table>("os")?;
+            os.set("execute", rlua::Value::Nil)?;
+            os.set("exit", rlua::Value::Nil)?;
+            os.set("remove", rlua::Value::Nil)?;
+            os.set("rename", rlua::Value::Nil)?;
+            os.set("setlocale", rlua::Value::Nil)?;
+            os.set("tmpname", rlua::Value::Nil)?;
+            //Remove the io lib as the library contains APIs that could conflict with Rust or FPKG
+            globals.set("io", rlua::Value::Nil)?;
+            //Remove the debug lib I don't like the following "Several of its functions violate basic assumptions about Lua code" on https://www.lua.org/manual/5.4/manual.html#6.8
+            //I don't things that violate safety.
+            globals.set("debug", rlua::Value::Nil)?;
+            //Apparently dofile can read from stdin which may cause some conflicts so get rid of it
+            globals.set("dofile", rlua::Value::Nil)?;
+            //"running maliciously crafted bytecode can crash the interpreter" no thanks I'm not a fan of segfaults, etc... Why would I use Rust otherwise?
+            globals.set("load", rlua::Value::Nil)?;
+            //Nice it goes with the previous one and even better it wants to conflict with stdin, well then you know where to go crappy unsafe function
+            globals.set("loadfile", rlua::Value::Nil)?;
+            //Will replace this one with a log library in order to integrate properly with Rust
+            globals.set("warn", rlua::Value::Nil)?;
+            //The package lib smells. The package.loadlib function screams "Hey, I'm here hijack me! Inject me! I'm a crack-ny-***!"
+            globals.set("package", rlua::Value::Nil)?;
+            //This function goes with package lib so get rid of it as well. Don't worry this one will have a replacement
+            globals.set("require", rlua::Value::Nil)?;
+            //Blacklist end
             let tbl = ctx.create_table()?;
             tbl.set("Run", ctx.create_function(run_command_lua)?)?;
             tbl.set("RunWithOutput", ctx.create_function(run_command_with_output_lua)?)?;
-            ctx.globals().set("command", tbl)?;
-            let io = ctx.create_table()?;
-            io.set("IsDirectory", ctx.create_function(io_isdir)?)?;
-            io.set("List", ctx.create_function(io_list)?)?;
-            ctx.globals().set("file", io)?;
+            globals.set("command", tbl)?;
+            let file = ctx.create_table()?;
+            file.set("IsDirectory", ctx.create_function(io_isdir)?)?;
+            file.set("List", ctx.create_function(io_list)?)?;
+            globals.set("file", file)?;
             return Ok(());
         });
         match res
