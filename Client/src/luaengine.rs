@@ -36,7 +36,6 @@ use std::str;
 use std::string::String;
 use std::vec::Vec;
 use rlua::FromLua;
-use core::cell::RefMut;
 
 use crate::common::Error;
 use crate::common::ErrorDomain;
