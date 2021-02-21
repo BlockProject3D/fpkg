@@ -52,11 +52,16 @@
 mod command;
 mod profile;
 mod installer;
-mod luaengine;
 mod packager;
 mod publisher;
 mod common;
 mod settings;
+
+//Lua Engine
+mod luaengine;
+mod lualibfile;
+mod lualibcommand;
+mod lualibstring;
 
 //Registry implementations
 mod registry;

@@ -32,16 +32,19 @@ use rlua::Lua;
 use rlua::UserData;
 use rlua::UserDataMethods;
 use std::fs;
+use std::str;
 use std::string::String;
 use std::vec::Vec;
 use rlua::FromLua;
 use core::cell::RefMut;
 
-use crate::command;
 use crate::common::Error;
 use crate::common::ErrorDomain;
 use crate::common::Result;
 use crate::profile::Profile;
+use crate::lualibfile::open_libfile;
+use crate::lualibcommand::open_libcommand;
+use crate::lualibstring::open_libstring;
 
 pub struct Compiler
 {
@@ -148,16 +151,16 @@ impl ToolchainConfig
     }
 }
 
-impl UserData for ToolchainConfig
+impl UserData for &mut ToolchainConfig
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("SetProp", |_, this, (key, val): (String, String)|
+        methods.add_method_mut("Set", |_, this, (key, val): (String, String)|
         {
             this.props.insert(key, val);
             return Ok(());
         });
-        methods.add_method("GetProp", |_, this, key: String|
+        methods.add_method("Get", |_, this, key: String|
         {
             return match this.props.get(&key)
             {
@@ -196,7 +199,7 @@ impl UserData for &mut InstallTool
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("AddSubProject", |_, this, path: String|
+        methods.add_method_mut("AddSubproject", |_, this, path: String|
         {
             this.subprojects.push(path);
             return Ok(());
@@ -221,53 +224,6 @@ impl UserData for &mut InstallTool
 pub struct LuaFile
 {
     state: Lua
-}
-
-fn run_command_lua(_: rlua::Context<'_>, (exe, args): (String, Vec<String>)) -> rlua::Result<(bool, Option<i32>)>
-{
-    match command::run_command(&exe, args)
-    {
-        Ok(v) => return Ok((v.success(), v.code())),
-        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
-    }
-}
-
-fn run_command_with_output_lua(_: rlua::Context<'_>, (exe, args): (String, Vec<String>)) -> rlua::Result<String>
-{
-    match command::run_command_with_output(&exe, args)
-    {
-        Ok(v) => return Ok(v),
-        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
-    }
-}
-
-fn io_isdir(_: rlua::Context<'_>, file: String) -> rlua::Result<bool>
-{
-    let path = Path::new(&file);
-    return Ok(path.is_dir());
-}
-
-fn io_list(_: rlua::Context<'_>, file: String) -> rlua::Result<Vec<String>>
-{
-    let mut v: Vec<String> = Vec::new();
-    let path = Path::new(&file);
-
-    match path.read_dir()
-    {
-        Ok(entries) =>
-        {
-            for entry in entries
-            {
-                match entry
-                {
-                    Ok(vv) => v.push(String::from(vv.path().to_string_lossy().to_owned())),
-                    Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
-                }
-            }
-            return Ok(v);
-        },
-        Err(e) => return Err(rlua::Error::RuntimeError(format!("{}", e)))
-    }
 }
 
 impl LuaFile
@@ -332,14 +288,9 @@ impl LuaFile
             //This function goes with package lib so get rid of it as well. Don't worry this one will have a replacement
             globals.set("require", rlua::Value::Nil)?;
             //Blacklist end
-            let tbl = ctx.create_table()?;
-            tbl.set("Run", ctx.create_function(run_command_lua)?)?;
-            tbl.set("RunWithOutput", ctx.create_function(run_command_with_output_lua)?)?;
-            globals.set("command", tbl)?;
-            let file = ctx.create_table()?;
-            file.set("IsDirectory", ctx.create_function(io_isdir)?)?;
-            file.set("List", ctx.create_function(io_list)?)?;
-            globals.set("file", file)?;
+            open_libfile(ctx)?;
+            open_libcommand(ctx)?;
+            open_libstring(ctx)?;
             return Ok(());
         });
         match res
@@ -448,26 +399,29 @@ impl LuaFile
         return Ok((tool.subprojects, tool.dependencies, tool.generator));
     }
 
+    fn func_configure_internal(&mut self, toolchain: &mut ToolchainConfig) -> rlua::Result<()>
+    {
+        return self.state.context(|ctx|
+        {
+            ctx.scope(|scope|
+            {
+                let userdata = scope.create_nonstatic_userdata(toolchain)?;
+                let func: rlua::Function = ctx.globals().get("Configure")?;
+                func.call(userdata)?;
+                return Ok(());
+            })?;
+            return Ok(());
+        });
+    }
+
     pub fn func_configure(&mut self, toolchain_name: &str) -> Result<HashMap<String, String>>
     {
-        let res = self.state.context(|ctx|
+        let mut toolchain = ToolchainConfig::new(toolchain_name);
+        if let Err(e) = self.func_configure_internal(&mut toolchain)
         {
-            let userdata = ctx.scope(|scope|
-            {
-                let userdata = scope.create_static_userdata(ToolchainConfig::new(toolchain_name))?;
-                let func: rlua::Function = ctx.globals().get("Configure")?;
-                func.call(userdata.clone())?;
-                return Ok(userdata);
-            })?;
-            let mut useless: RefMut<ToolchainConfig> = userdata.borrow_mut()?;
-            let data = std::mem::replace(&mut useless.props, HashMap::new());
-            return Ok(data);
-        });
-        match res
-        {
-            Ok(v) => return Ok(v),
-            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
+            return Err(Error::Lua(ErrorDomain::LuaEngine, e));
         }
+        return Ok(toolchain.props);
     }
 
     pub fn func_build(&mut self, cfg: &str, profile: &Profile) -> Result<i32>

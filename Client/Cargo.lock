@@ -83,6 +83,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bufferedreader"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5d33b606c32c1289b63755a5959b00b74c1bb0cbacda5cddc9122436093097a"
+
+[[package]]
 name = "bumpalo"
 version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -222,6 +228,7 @@ name = "fpkg"
 version = "0.1.0"
 dependencies = [
  "bpx",
+ "bufferedreader",
  "clap",
  "dirs",
  "glgp",

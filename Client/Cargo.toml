@@ -16,6 +16,7 @@ tempfile = "3.0.7"
 bpx = { path = "../BPX" }
 glgp = { path = "../GitLabGenericPackages" }
 dirs = "1.0.5"
+bufferedreader = "1.0.0"
 
 [profile.dev]
 opt-level = 1
