@@ -36,6 +36,7 @@ use std::str;
 use std::string::String;
 use std::vec::Vec;
 use rlua::FromLua;
+use rlua::ToLua;
 
 use crate::common::Error;
 use crate::common::ErrorDomain;
@@ -44,7 +45,9 @@ use crate::profile::Profile;
 use crate::lualibfile::open_libfile;
 use crate::lualibcommand::open_libcommand;
 use crate::lualibstring::open_libstring;
+use crate::lualibfpkg::open_libfpkg;
 
+#[derive(Clone)]
 pub struct Compiler
 {
     pub name: String,
@@ -58,9 +61,9 @@ impl FromLua<'_> for Compiler
     {
         if let rlua::Value::Table(table) = val
         {
-            let name: String = table.get("Name")?;
-            let minimum_version: Option<String> = table.get("MinVersion")?;
-            let versions: Option<Vec<String>> = table.get("Versions")?;
+            let name: String = table.get("name")?;
+            let minimum_version: Option<String> = table.get("minVersion")?;
+            let versions: Option<Vec<String>> = table.get("versions")?;
             return Ok(Compiler
             {
                 name: name,
@@ -74,6 +77,18 @@ impl FromLua<'_> for Compiler
             to: "Compiler",
             message: Some(String::from("Could not load table"))
         });
+    }
+}
+
+impl ToLua<'_> for Compiler
+{
+    fn to_lua(self, ctx: rlua::Context<'_>) -> rlua::Result<rlua::Value<'_>>
+    {
+        let tbl = ctx.create_table()?;
+        tbl.set("name", self.name)?;
+        tbl.set("minVersion", self.minimum_version)?;
+        tbl.set("versions", self.versions)?;
+        return Ok(rlua::Value::Table(tbl));
     }
 }
 
@@ -154,12 +169,12 @@ impl UserData for &mut ToolchainConfig
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("Set", |_, this, (key, val): (String, String)|
+        methods.add_method_mut("set", |_, this, (key, val): (String, String)|
         {
             this.props.insert(key, val);
             return Ok(());
         });
-        methods.add_method("Get", |_, this, key: String|
+        methods.add_method("get", |_, this, key: String|
         {
             return match this.props.get(&key)
             {
@@ -167,7 +182,7 @@ impl UserData for &mut ToolchainConfig
                 None => Ok(None)
             };
         });
-        methods.add_method("GetName", |_, this, ()|
+        methods.add_method("getName", |_, this, ()|
         {
             return Ok(this.toolchain_name.clone());
         });
@@ -198,12 +213,12 @@ impl UserData for &mut InstallTool
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("AddSubproject", |_, this, path: String|
+        methods.add_method_mut("addSubproject", |_, this, path: String|
         {
             this.subprojects.push(path);
             return Ok(());
         });
-        methods.add_method_mut("AddDependency", |_, this, (name, version): (String, String)|
+        methods.add_method_mut("addDependency", |_, this, (name, version): (String, String)|
         {
             this.dependencies.push(Dependency
             {
@@ -212,7 +227,7 @@ impl UserData for &mut InstallTool
             });
             return Ok(());
         });
-        methods.add_method_mut("SetGenerator", |_, this, name: String|
+        methods.add_method_mut("setGenerator", |_, this, name: String|
         {
             this.generator = Some(name);
             return Ok(());
@@ -290,6 +305,7 @@ impl LuaFile
             open_libfile(ctx)?;
             open_libcommand(ctx)?;
             open_libstring(ctx)?;
+            open_libfpkg(ctx)?;
             return Ok(());
         });
         match res
@@ -303,15 +319,14 @@ impl LuaFile
     {
         let res: rlua::Result<PackageTable> = self.state.context(|ctx|
         {
-            let globals = ctx.globals();
-            let table: rlua::Table = globals.get("PackageInfo")?;
-            let name: String = table.get("Name")?;
-            let desc: String = table.get("Description")?;
-            let version: String = table.get("Version")?;
-            let configs: Option<Vec<String>> = table.get("Configurations")?;
-            let systems: Option<Vec<String>> = table.get("Platforms")?;
-            let archs: Option<Vec<String>> = table.get("Archs")?;
-            let compilers: Option<Vec<Compiler>> = table.get("Compilers")?;
+            let table: rlua::Table = ctx.named_registry_value("Project")?;
+            let name: String = table.get("name")?;
+            let desc: String = table.get("description")?;
+            let version: String = table.get("version")?;
+            let configs: Option<Vec<String>> = table.get("configurations")?;
+            let systems: Option<Vec<String>> = table.get("platforms")?;
+            let archs: Option<Vec<String>> = table.get("architectures")?;
+            let compilers: Option<Vec<Compiler>> = table.get("compilers")?;
 
             return Ok(PackageTable
             {
@@ -336,7 +351,8 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
-            return ctx.globals().contains_key("Install");
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            return meta.contains_key("install");
         });
         match res
         {
@@ -349,7 +365,8 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
-            return ctx.globals().contains_key("Configure");
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            return meta.contains_key("configure");
         });
         match res
         {
@@ -362,7 +379,8 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
-            return ctx.globals().contains_key("Build");
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            return meta.contains_key("build");
         });
         match res
         {
@@ -377,11 +395,12 @@ impl LuaFile
         {
             ctx.scope(|scope|
             {
+                let meta: rlua::Table = ctx.globals().get("Project")?;
                 let userdata = scope.create_nonstatic_userdata(tool)?;
                 let mut tbl = ctx.create_table()?;
                 profile.fill_table(&mut tbl)?;
-                let func: rlua::Function = ctx.globals().get("Install")?;
-                func.call((tbl, userdata))?;
+                let func: rlua::Function = meta.get("install")?;
+                func.call((meta, tbl, userdata))?;
                 return Ok(());
             })?;
             return Ok(());
@@ -404,9 +423,10 @@ impl LuaFile
         {
             ctx.scope(|scope|
             {
+                let meta: rlua::Table = ctx.globals().get("Project")?;
                 let userdata = scope.create_nonstatic_userdata(toolchain)?;
-                let func: rlua::Function = ctx.globals().get("Configure")?;
-                func.call(userdata)?;
+                let func: rlua::Function = meta.get("configure")?;
+                func.call((meta, userdata))?;
                 return Ok(());
             })?;
             return Ok(());
@@ -427,11 +447,12 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
+            let meta: rlua::Table = ctx.globals().get("Project")?;
             let mut tbl = ctx.create_table()?;
-            tbl.set("Configuration", cfg)?;
+            tbl.set("configuration", cfg)?;
             profile.fill_table(&mut tbl)?;
-            let func: rlua::Function = ctx.globals().get("Build")?;
-            let res: Option<i32> = func.call(tbl)?;
+            let func: rlua::Function = meta.get("build")?;
+            let res: Option<i32> = func.call((meta, tbl))?;
             match res
             {
                 Some(v) => return Ok(v),
@@ -449,19 +470,20 @@ impl LuaFile
     {
         let res = self.state.context(|ctx|
         {
+            let meta: rlua::Table = ctx.globals().get("Project")?;
             let mut tbl = ctx.create_table()?;
             profile.fill_table(&mut tbl)?;
-            let func: rlua::Function = ctx.globals().get("Package")?;
-            let res: Option<rlua::Table> = func.call(tbl)?;
+            let func: rlua::Function = meta.get("package")?;
+            let res: Option<rlua::Table> = func.call((meta, tbl))?;
 
             match res
             {
                 Some(v) =>
                 {
-                    let typedas: String = v.get("Type")?;
-                    let bins: Option<Vec<ConfiguredTarget>> = v.get("Binaries")?;
-                    let incs: Option<Vec<ConfiguredTarget>> = v.get("Includes")?;
-                    let cnt: Option<Vec<String>> = v.get("Content")?;
+                    let typedas: String = v.get("type")?;
+                    let bins: Option<Vec<ConfiguredTarget>> = v.get("binaries")?;
+                    let incs: Option<Vec<ConfiguredTarget>> = v.get("includes")?;
+                    let cnt: Option<Vec<String>> = v.get("content")?;
 
                     return Ok(Some(Target
                     {

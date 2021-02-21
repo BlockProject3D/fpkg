@@ -1,44 +1,44 @@
-PackageInfo = {
-    Name = "test-zlib-static",
-    Version = "1.0.0",
-    Description = "zlib static library FPKG package",
-    Configurations = {"Debug", "Release"}
-}
+fpkg.project({
+    name = "test-zlib-static",
+    version = "1.0.0",
+    description = "zlib static library FPKG package",
+    configurations = {"Debug", "Release"}
+})
 
-function Build(profile)
-    if not(file.IsDirectory("zlib")) then
-        command.Run("git", {"clone", "https://github.com/madler/zlib.git"})
+function Project:build(profile)
+    if not(file.isDirectory("zlib")) then
+        command.run("git", {"clone", "https://github.com/madler/zlib.git"})
     end
-    if not(file.IsDirectory("zlib-"..profile.Configuration)) then
-        if not(profile.Platform == "Windows") then
-            command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration, "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"})
+    if not(file.isDirectory("zlib-"..profile.configuration)) then
+        if not(profile.platform == "Windows") then
+            command.run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.configuration, "-DCMAKE_BUILD_TYPE="..profile.configuration, "-DCMAKE_INSTALL_PREFIX="..profile.configuration, "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"})
         else
-            command.Run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.Configuration, "-DCMAKE_BUILD_TYPE="..profile.Configuration, "-DCMAKE_INSTALL_PREFIX="..profile.Configuration})
+            command.run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.configuration, "-DCMAKE_BUILD_TYPE="..profile.configuration, "-DCMAKE_INSTALL_PREFIX="..profile.configuration})
         end
     end
-    command.Run("cmake", {"--build", "zlib-"..profile.Configuration, "--config", profile.Configuration, "--target", "zlibstatic"})
+    command.run("cmake", {"--build", "zlib-"..profile.configuration, "--config", profile.configuration, "--target", "zlibstatic"})
 end
 
-function Package(profile)
-    for _, v in pairs(PackageInfo.Configurations) do
+function Project:package(profile)
+    for _, v in pairs(self.configurations) do
         local tbl = profile;
-        tbl.Configuration = v;
-        Build(tbl)
-        command.Run("cmake", {"--build", "zlib-"..v, "--target", "install", "--config", v})
+        tbl.configuration = v;
+        self:build(tbl)
+        command.run("cmake", {"--build", "zlib-"..v, "--target", "install", "--config", v})
     end
     local filenamed = "libz.a"
     local filename = "libz.a"
-    if (profile.Platform == "Windows") then
+    if (profile.platform == "Windows") then
         filenamed = "zlibstaticd.lib"
         filename = "zlibstatic.lib"
     end
     local target = {
-        Type = "Library", --Either Library or Framework
-        Includes = { --Only for Library targets
+        type = "Library", --Either Library or Framework
+        includes = { --Only for Library targets
             {"./Release/include", "Release"}, --Relative path, configuration type
             {"./Debug/include", "Debug"}
         },
-        Binaries = { --Only for Library targets
+        binaries = { --Only for Library targets
             {"./Debug/lib/"..filenamed, "Debug"}, --Relative path, configuration type
             {"./Release/lib/"..filename, "Release"}
         }

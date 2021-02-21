@@ -131,10 +131,10 @@ impl Profile
     pub fn fill_table(&self, table: &mut rlua::Table) -> rlua::Result<()>
     {
         //Annoying peace of shit RLua is unable to take Strings!
-        table.set("CompilerName", self.compiler_name.as_str())?;
-        table.set("CompilerVersion", self.compiler_version.as_str())?;
-        table.set("Platform", self.platform.as_str())?;
-        table.set("Architecture", self.architecture.as_str())?;
+        table.set("compilerName", self.compiler_name.as_str())?;
+        table.set("compilerVersion", self.compiler_version.as_str())?;
+        table.set("platform", self.platform.as_str())?;
+        table.set("architecture", self.architecture.as_str())?;
         return Ok(());
     }
 }

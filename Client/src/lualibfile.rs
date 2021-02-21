@@ -50,7 +50,7 @@ impl UserData for WrappedFile
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M)
     {
-        methods.add_method_mut("Read", |_, this, len: usize|
+        methods.add_method_mut("read", |_, this, len: usize|
         {
             if let Some(file) = &mut this.file
             {
@@ -64,7 +64,7 @@ impl UserData for WrappedFile
             }
             return Err(Error::RuntimeError(String::from("Attempt to use a closed file")));
         });
-        methods.add_method_mut("Write", |_, this, data: Vec<u8>|
+        methods.add_method_mut("write", |_, this, data: Vec<u8>|
         {
             if let Some(file) = &mut this.file
             {
@@ -77,7 +77,7 @@ impl UserData for WrappedFile
             }
             return Err(Error::RuntimeError(String::from("Attempt to use a closed file")));
         });
-        methods.add_method_mut("Close", |_, this, ()|
+        methods.add_method_mut("close", |_, this, ()|
         {
             let fileres = std::mem::replace(&mut this.file, None);
             if let Some(file) = fileres
@@ -162,11 +162,11 @@ fn file_open(ctx: Context<'_>, (path, mode): (String, String)) -> Result<AnyUser
 pub fn open_libfile(ctx: Context<'_>) -> Result<()>
 {
     let file = ctx.create_table()?;
-    file.set("IsDirectory", ctx.create_function(file_isdir)?)?;
-    file.set("List", ctx.create_function(file_list)?)?;
-    file.set("Rename", ctx.create_function(file_rename)?)?;
-    file.set("Size", ctx.create_function(file_size)?)?;
-    file.set("Open", ctx.create_function(file_open)?)?;
+    file.set("isDirectory", ctx.create_function(file_isdir)?)?;
+    file.set("list", ctx.create_function(file_list)?)?;
+    file.set("rename", ctx.create_function(file_rename)?)?;
+    file.set("size", ctx.create_function(file_size)?)?;
+    file.set("open", ctx.create_function(file_open)?)?;
     ctx.globals().set("file", file)?;
     return Ok(());
 }

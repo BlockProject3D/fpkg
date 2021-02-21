@@ -26,31 +26,51 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::str;
 use rlua::Context;
 use rlua::Result;
 use rlua::Error;
+use rlua::Table;
 
-fn string_frombytes(_: Context<'_>, (buf, offset, size): (Vec<u8>, usize, usize)) -> Result<String>
+use crate::luaengine::Compiler;
+
+fn fpkg_project(ctx: Context<'_>, table: Table) -> Result<()>
 {
-    let s = match str::from_utf8(&buf[offset..size])
+    if ctx.globals().contains_key("Project")?
     {
-        Ok(v) => v,
-        Err(e) => return Err(Error::RuntimeError(format!("Invalid UTF-8 sequence: {}", e)))
-    };
-    return Ok(String::from(s));
+        return Err(Error::RuntimeError(String::from("Attempt to re-define project table")))
+    }
+    let name: String = table.get("name")?;
+    let desc: String = table.get("description")?;
+    let version: String = table.get("version")?;
+    let configs: Option<Vec<String>> = table.get("configurations")?;
+    let systems: Option<Vec<String>> = table.get("platforms")?;
+    let archs: Option<Vec<String>> = table.get("architectures")?;
+    let compilers: Option<Vec<Compiler>> = table.get("compilers")?;
+    let meta = ctx.create_table()?;
+    let copy = ctx.create_table()?;
+    meta.set("name", name.clone())?;
+    meta.set("description", desc.clone())?;
+    meta.set("version", version.clone())?;
+    meta.set("configurations", configs.clone())?;
+    meta.set("platforms", systems.clone())?;
+    meta.set("architectures", archs.clone())?;
+    meta.set("compilers", compilers.clone())?;
+    copy.set("name", name)?;
+    copy.set("description", desc)?;
+    copy.set("version", version)?;
+    copy.set("configurations", configs)?;
+    copy.set("platforms", systems)?;
+    copy.set("architectures", archs)?;
+    copy.set("compilers", compilers)?;
+    ctx.globals().set("Project", meta)?;
+    ctx.set_named_registry_value("Project", copy)?;
+    return Ok(());
 }
 
-fn string_tobytes(_: Context<'_>, (s, offset, size): (String, usize, usize)) -> Result<Vec<u8>>
+pub fn open_libfpkg(ctx: Context<'_>) -> Result<()>
 {
-    let bytes = (&s[offset..size]).as_bytes().to_vec();
-    return Ok(bytes);
-}
-
-pub fn open_libstring(ctx: Context<'_>) -> Result<()>
-{
-    let string = ctx.globals().get::<_, rlua::Table>("string")?;
-    string.set("fromBytes", ctx.create_function(string_frombytes)?)?;
-    string.set("toBytes", ctx.create_function(string_tobytes)?)?;
+    let tbl = ctx.create_table()?;
+    tbl.set("project", ctx.create_function(fpkg_project)?)?;
+    ctx.globals().set("fpkg", tbl)?;
     return Ok(());
 }

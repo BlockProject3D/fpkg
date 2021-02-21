@@ -54,8 +54,8 @@ fn run_command_with_output_lua(_: Context<'_>, (exe, args): (String, Vec<String>
 pub fn open_libcommand(ctx: Context<'_>) -> Result<()>
 {
     let tbl = ctx.create_table()?;
-    tbl.set("Run", ctx.create_function(run_command_lua)?)?;
-    tbl.set("RunPiped", ctx.create_function(run_command_with_output_lua)?)?;
+    tbl.set("run", ctx.create_function(run_command_lua)?)?;
+    tbl.set("runPiped", ctx.create_function(run_command_with_output_lua)?)?;
     ctx.globals().set("command", tbl)?;
     return Ok(());
 }
