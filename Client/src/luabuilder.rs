@@ -134,7 +134,7 @@ impl Builder for LuaBuilder
             return false;
         }
         let mut lua = LuaFile::new();
-        if !lua.open(&path).is_ok()
+        if !lua.open_libs().is_ok() || !lua.open(&path).is_ok()
         {
             return true;
         }
