@@ -10,7 +10,3 @@ edition = "2018"
 tempfile = "3.0.7"
 byteorder = "1"
 xz = "0.1.0"
-
-[profile.dev]
-opt-level = 1
-overflow-checks = false

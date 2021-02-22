@@ -26,13 +26,15 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use std::num::Wrapping;
+
 pub fn hash(s: &str) -> u64
 {
-    let mut val: u64 = 5381;
+    let mut val: Wrapping<u64> = Wrapping(5381);
 
     for v in s.as_bytes()
     {
-        val = ((val << 5) + val) + *v as u64;
+        val = ((val << 5) + val) + Wrapping(*v as u64);
     }
-    return val;
+    return val.0;
 }

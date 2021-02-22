@@ -35,6 +35,7 @@ use std::io::Write;
 use std::fs::File;
 use std::boxed::Box;
 use xz::stream::Stream;
+use std::num::Wrapping;
 
 pub const SIZE_SECTION_HEADER: usize = 24;
 
@@ -331,13 +332,13 @@ impl Section for FileBasedSection
     }
 }
 
-fn read_chksum(data: &[u8]) -> u32
+fn read_chksum(data: &[u8]) -> Wrapping<u32>
 {
-    let mut chk: u32 = 0;
+    let mut chk: Wrapping<u32> = Wrapping(0);
 
     for i in 0..data.len()
     {
-        chk += data[i] as u32;
+        chk += Wrapping(data[i] as u32);
     }
     return chk;
 }
@@ -354,7 +355,7 @@ fn block_based_deflate(input: &mut dyn Read, output: &mut dyn Write, inflated_si
         Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("[BPX] deflate initialization error: {}", e))),
         Ok(v) => v
     };
-    let mut chksum: u32 = 0;
+    let mut chksum: Wrapping<u32> = Wrapping(0);
     let mut csize: usize = 0;
 
     while count < inflated_size {
@@ -383,7 +384,7 @@ fn block_based_deflate(input: &mut dyn Read, output: &mut dyn Write, inflated_si
             csize += odata.len();
         }
     }
-    return Ok((csize, chksum));
+    return Ok((csize, chksum.0));
 }
 
 fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, deflated_size: usize) -> io::Result<u32>
@@ -395,7 +396,7 @@ fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, deflated_si
     };
     let mut action = xz::stream::Action::Run;
     let mut expected = xz::stream::Status::MemNeeded;
-    let mut chksum: u32 = 0;
+    let mut chksum: Wrapping<u32> = Wrapping(0);
     let mut remaining = deflated_size;
 
     while remaining > 0 {
@@ -422,7 +423,7 @@ fn block_based_inflate(input: &mut dyn Read, output: &mut dyn Write, deflated_si
         }
     }
     output.flush()?;
-    return Ok(chksum);
+    return Ok(chksum.0);
 }
 
 fn load_section_in_memory(bpx: &mut File, header: &BPXSectionHeader) -> io::Result<InMemorySection>
@@ -446,7 +447,7 @@ fn load_section_in_memory(bpx: &mut File, header: &BPXSectionHeader) -> io::Resu
         let mut data = vec![0; header.size as usize];
         bpx.read(&mut data)?;
         let chksum = read_chksum(&data);
-        if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
+        if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum.0 != header.chksum
         {
             return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
@@ -474,7 +475,7 @@ fn load_section_as_file(bpx: &mut File, header: &BPXSectionHeader) -> io::Result
     {
         let mut idata: [u8; READ_BLOCK_SIZE] = [0; READ_BLOCK_SIZE];
         let mut count: usize = 0;
-        let mut chksum: u32 = 0;
+        let mut chksum: Wrapping<u32> = Wrapping(0);
         let mut remaining: usize = header.size as usize;
         while count < header.size as usize
         {
@@ -484,7 +485,7 @@ fn load_section_as_file(bpx: &mut File, header: &BPXSectionHeader) -> io::Result
             count += res;
             remaining -= res;
         }
-        if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum != header.chksum
+        if header.flags & FLAG_CHECK_WEAK == FLAG_CHECK_WEAK && chksum.0 != header.chksum
         {
             return Err(io::Error::new(io::ErrorKind::InvalidData, format!("[BPX] checksum validation failed {} != {}", chksum, header.chksum)));
         }
@@ -530,7 +531,7 @@ pub fn write_section(section: &mut Box<dyn Section>, out: &mut dyn Write) -> io:
     {
         let mut idata: [u8; READ_BLOCK_SIZE] = [0; READ_BLOCK_SIZE];
         let mut count: usize = 0;
-        let mut chksum: u32 = 0;
+        let mut chksum: Wrapping<u32> = Wrapping(0);
         while count < section.size() as usize
         {
             let res = section.read(&mut idata)?;
@@ -539,7 +540,7 @@ pub fn write_section(section: &mut Box<dyn Section>, out: &mut dyn Write) -> io:
             count += res;
         }
         section.flush()?;
-        return Ok((section.size(), chksum, FLAG_CHECK_WEAK));
+        return Ok((section.size(), chksum.0, FLAG_CHECK_WEAK));
     }
     else
     {
