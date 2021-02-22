@@ -212,7 +212,7 @@ impl ProfileManager
 
     pub fn exists(&self) -> bool
     {
-        return self.get_toolchain_path().join("profile").exists();
+        return self.current_profile.is_some();
     }
 
     pub fn write(&self) -> io::Result<()>
@@ -226,22 +226,12 @@ impl ProfileManager
 
     pub fn load(&mut self, toolchain_name: &str) -> Result<()>
     {
-        let old_toolchain = std::mem::replace(&mut self.toolchain_name, String::from(toolchain_name));
-        if !self.exists()
+        self.toolchain_name = String::from(toolchain_name);
+        let p = self.get_toolchain_path().join("profile");
+        if p.exists()
         {
-            self.toolchain_name = old_toolchain;
-            return Err(Error::Generic(ErrorDomain::Profile, format!("No toolchain named {} has been found in the ProfileManager", toolchain_name)));
+            self.current_profile = Some(Profile::from_file(&p)?);
         }
-        let profile = match Profile::from_file(&self.get_toolchain_path().join("profile"))
-        {
-            Err(e) =>
-            {
-                self.toolchain_name = old_toolchain;
-                return Err(e);
-            },
-            Ok(v) => v
-        };
-        self.current_profile = Some(profile);
         return Ok(());
     }
 
