@@ -263,7 +263,10 @@ impl BuildGenerator for CMakeGenerator
             return Err(Error::Io(ErrorDomain::Generator, e));
         }
         let mut main_cmake = String::from("cmake_minimum_required(VERSION 3.10)\n\n");
-        main_cmake.push_str(&format!("include(\"${{CMAKE_CURRENT_LIST_DIR}}/{}/install.cmake\")\n", &self.toolchain_name));
+        main_cmake.push_str(&String::from("if (NOT DEFINED FPKG_TOOLCHAIN_NAME)\n"));
+        main_cmake.push_str(&String::from("\tset(FPKG_TOOLCHAIN_NAME host)\n"));
+        main_cmake.push_str(&String::from("endif (NOT DEFINED FPKG_TOOLCHAIN_NAME)\n\n"));
+        main_cmake.push_str(&String::from("include(\"${CMAKE_CURRENT_LIST_DIR}/${FPKG_TOOLCHAIN_NAME}/install.cmake\")\n"));
         if let Err(e) = fs::write(self.base_folder.join(Path::new("install.cmake")), &main_cmake)
         {
             return Err(Error::Io(ErrorDomain::Generator, e));
