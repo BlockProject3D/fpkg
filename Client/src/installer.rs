@@ -314,7 +314,7 @@ fn call_generator(profilemgr: &ProfileManager, dep: &Dependency, generator: &mut
     return Ok(());
 }
 
-fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
+fn install_sub_directory(path: &Path, toolchain: Option<&str>) -> Result<Vec<String>>
 {
     let settings = Settings::new()?;
     let mut res = Vec::new();
@@ -322,7 +322,7 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
     let registries = settings.get_registries();
     let path = Path::new(path).join("fpkg.lua");
     let mut file = LuaFile::new();
-    let toolchain = match platform
+    let toolchain = match toolchain
     {
         Some(v) => v,
         None => "host"
@@ -391,14 +391,14 @@ fn check_is_valid_project_dir(path: &Path) -> Result<()>
     return Ok(());
 }
 
-pub fn install(platform: Option<&str>) -> Result<()>
+pub fn install(toolchain: Option<&str>) -> Result<()>
 {
     let mut directories: Vec<String> = Vec::new();
     directories.push(String::from("."));
     while let Some(dir) = directories.pop()
     {
         check_is_valid_project_dir(Path::new(&dir))?;
-        let subdirs = install_sub_directory(Path::new(&dir), platform)?;
+        let subdirs = install_sub_directory(Path::new(&dir), toolchain)?;
         for v in subdirs
         {
             directories.push(v);
