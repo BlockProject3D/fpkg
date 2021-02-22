@@ -85,9 +85,9 @@ mod hosttoolchain;
 use std::path::Path;
 use clap::clap_app;
 
-fn handle_install_command(platform: Option<&str>) -> i32
+fn handle_install_command(toolchain: Option<&str>) -> i32
 {
-    match installer::install(platform)
+    match installer::install(toolchain)
     {
         Err(e) =>
         {
@@ -103,7 +103,7 @@ fn handle_install_command(platform: Option<&str>) -> i32
     }
 }
 
-fn handle_build_command(config: &str) -> i32
+fn handle_build_command(config: &str, toolchain: Option<&str>) -> i32
 {
     let path = Path::new(".");
     let builder = builder::find_builder(path);
@@ -117,7 +117,7 @@ fn handle_build_command(config: &str) -> i32
         }
         Some(b) =>
         {
-            match b.run_build(config, path)
+            match b.run_build(config, path, toolchain)
             {
                 Ok(res) => return res,
                 Err(e) =>
@@ -135,9 +135,9 @@ fn handle_build_command(config: &str) -> i32
     }
 }
 
-fn handle_package_command() -> i32
+fn handle_package_command(toolchain: Option<&str>) -> i32
 {
-    match packager::package(Path::new("./"))
+    match packager::package(Path::new("./"), toolchain)
     {
         Ok(v) => return v,
         Err(e) =>
@@ -178,7 +178,7 @@ fn main() {
         (about: "The easy C++ package manager built for BlockProject 3D")
         (@subcommand build =>
             (about: "Run automated build using CMake or Lua")
-            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
+            (@arg toolchain: +takes_value -t --toolchain "Specifies the toolchain to install packages for. Defaults to the host toolchain.")
             (@arg configuration: "Specifies an optional configuration to build with.")
         )
         (@subcommand test =>
@@ -186,31 +186,31 @@ fn main() {
         )
         (@subcommand package =>
             (about: "Run automated packaging using Lua")
-            (@arg publish: --publish "Publish the package.")
+            (@arg publish: -p --publish "Publish the package.")
             (@arg registry: +takes_value --registry -r "Specify the name of the registry to publish to.")
-            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
+            (@arg toolchain: +takes_value -t --toolchain "Specifies the toolchain to install packages for. Defaults to the host toolchain.")
         )
         (@subcommand install =>
             (about: "Install all required dependencies and SDKs")
-            (@arg platform: +takes_value -p --platform "Specifies the platform to install packages for. Defaults to the host platform.")
+            (@arg toolchain: +takes_value -t --toolchain "Specifies the toolchain to install packages for. Defaults to the host toolchain.")
         )
     ).get_matches();
 
     if let Some(matches) = matches.subcommand_matches("install")
     {
-        std::process::exit(handle_install_command(matches.value_of("platform")));
+        std::process::exit(handle_install_command(matches.value_of("toolchain")));
     }
     if let Some(matches) = matches.subcommand_matches("build")
     {
         match matches.value_of("configuration")
         {
-            Some(v) => std::process::exit(handle_build_command(v)),
-            None => std::process::exit(handle_build_command("debug"))
+            Some(v) => std::process::exit(handle_build_command(v, matches.value_of("toolchain"))),
+            None => std::process::exit(handle_build_command("debug", matches.value_of("toolchain")))
         }
     }
     if let Some(matches) = matches.subcommand_matches("package")
     {
-        let res = handle_package_command();
+        let res = handle_package_command(matches.value_of("toolchain"));
         if res != 0
         {
             std::process::exit(res);
@@ -220,20 +220,4 @@ fn main() {
             std::process::exit(handle_publish_command(matches.value_of("registry")));
         }
     }
-    /*if let Some(config) = matches.subcommand_matches("build") {
-        let builder = find_builder();
-        if let Some(buildcfg) = config.value_of("configuration") {
-            println!("Build with config: {}", buildcfg);
-        }
-        println!("Build with config: debug");
-    }
-    let mut test = Lua::new();
-    match test.execute::<()>("print(\"This is a test\")")
-    {
-        Ok(()) => return,
-        Err(e) => println!("Error: {:#?}", e)
-    }*/
-    //let c: f32 = test.get("a").unwrap();
-    // Same as before...
-    //println!("test {}", c);
 }

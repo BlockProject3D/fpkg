@@ -45,7 +45,7 @@ impl Builder for CMakeBuilder
         return path.join("CMakeLists.txt").exists();
     }
 
-    fn run_build(&self, configuration: &str, path: &Path) -> Result<i32>
+    fn run_build(&self, configuration: &str, path: &Path, _: Option<&str>) -> Result<i32>
     {
         let mut builddir = String::from("build-");
         let mut buildtype = String::from("-DCMAKE_BUILD_TYPE=");

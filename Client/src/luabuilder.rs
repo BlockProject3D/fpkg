@@ -141,7 +141,7 @@ impl Builder for LuaBuilder
         return lua.has_func_build();
     }
 
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32>
+    fn run_build(&self, config: &str, path: &Path, toolchain: Option<&str>) -> Result<i32>
     {
         let profilemgr = ProfileManager::new(path)?;
         if !profilemgr.exists()

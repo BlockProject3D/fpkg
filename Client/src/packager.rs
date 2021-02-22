@@ -176,7 +176,7 @@ fn set_type_ext(bpx: &mut bpxp::Encoder, profile: &Profile)
     }
 }
 
-pub fn package(path: &Path) -> Result<i32>
+pub fn package(path: &Path, toolchain: Option<&str>) -> Result<i32>
 {
     let profilemgr = ProfileManager::new(path)?;
     if !profilemgr.exists()

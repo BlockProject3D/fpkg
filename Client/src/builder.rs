@@ -39,7 +39,7 @@ use crate::cmakebuilder::CMakeBuilder;
 pub trait Builder
 {
     fn can_build(&self, path: &Path) -> bool;
-    fn run_build(&self, config: &str, path: &Path) -> Result<i32>;
+    fn run_build(&self, config: &str, path: &Path, toolchain: Option<&str>) -> Result<i32>;
 }
 
 pub fn find_builder(path: &Path) -> Option<Box<dyn Builder>>
