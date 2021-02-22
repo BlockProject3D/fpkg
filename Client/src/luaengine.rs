@@ -218,12 +218,16 @@ impl UserData for &mut InstallTool
             this.subprojects.push(path);
             return Ok(());
         });
-        methods.add_method_mut("addDependency", |_, this, (name, version): (String, String)|
+        methods.add_method_mut("addDependency", |_, this, (name, version): (String, Option<String>)|
         {
             this.dependencies.push(Dependency
             {
                 name: name,
-                version: version
+                version: match version
+                {
+                    Some(v) => v,
+                    None => String::from("latest")
+                }
             });
             return Ok(());
         });
@@ -414,7 +418,7 @@ impl LuaFile
                 let mut tbl = ctx.create_table()?;
                 profile.fill_table(&mut tbl)?;
                 let func: rlua::Function = meta.get("install")?;
-                func.call((meta, tbl, userdata))?;
+                func.call((meta, userdata, tbl))?;
                 return Ok(());
             })?;
             return Ok(());
