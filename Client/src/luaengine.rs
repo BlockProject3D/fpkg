@@ -389,6 +389,20 @@ impl LuaFile
         }
     }
 
+    pub fn has_func_dep_installed(&self) -> bool
+    {
+        let res = self.state.context(|ctx|
+        {
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            return meta.contains_key("dependencyInstalled");
+        });
+        match res
+        {
+            Ok(v) => return v,
+            Err(_) => return false
+        }
+    }
+
     fn func_install_internal(&mut self, tool: &mut InstallTool, profile: &Profile) -> rlua::Result<()>
     {
         return self.state.context(|ctx|
@@ -494,6 +508,31 @@ impl LuaFile
                     }));
                 },
                 None => return Ok(None)
+            }
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
+        }
+    }
+
+    pub fn func_dep_installed(&mut self, dep: &Dependency, profile: &Profile) -> Result<i32>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let deptbl = ctx.create_table()?;
+            deptbl.set("name", dep.name.clone())?;
+            deptbl.set("version", dep.version.clone())?;
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            let mut tbl = ctx.create_table()?;
+            profile.fill_table(&mut tbl)?;
+            let func: rlua::Function = meta.get("dependencyInstalled")?;
+            let res: Option<i32> = func.call((meta, deptbl, tbl))?;
+            match res
+            {
+                Some(v) => return Ok(v),
+                None => return Ok(0)
             }
         });
         match res

@@ -314,20 +314,6 @@ fn call_generator(profilemgr: &ProfileManager, dep: &Dependency, generator: &mut
     return Ok(());
 }
 
-fn install_depenedencies(dependencies: Vec<Dependency>, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>, generator: &mut Box<dyn BuildGenerator>) -> Result<()>
-{
-    for dep in dependencies
-    {
-        if !is_dependency_installed(&dep, &profilemgr)?
-        {
-            install_dependency(&dep, &profilemgr, &registries)?;
-        }
-        call_generator(&profilemgr, &dep, generator)?;
-    }
-    generator.generate()?;
-    return Ok(());
-}
-
 fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<String>>
 {
     let settings = Settings::new()?;
@@ -376,7 +362,19 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
                 }
             }
         };
-        install_depenedencies(deps, &profilemgr, &registries, &mut generator)?;
+        for dep in deps
+        {
+            if !is_dependency_installed(&dep, &profilemgr)?
+            {
+                install_dependency(&dep, &profilemgr, &registries)?;
+            }
+            call_generator(&profilemgr, &dep, &mut generator)?;
+            if file.has_func_dep_installed()
+            {
+                file.func_dep_installed(&dep, &profile)?;
+            }
+        }
+        generator.generate()?;
     }
     return Ok(res);
 }
