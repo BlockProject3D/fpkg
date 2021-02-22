@@ -143,7 +143,11 @@ impl Builder for LuaBuilder
 
     fn run_build(&self, config: &str, path: &Path, toolchain: Option<&str>) -> Result<i32>
     {
-        let profilemgr = ProfileManager::new(path)?;
+        let mut profilemgr = ProfileManager::new(path)?;
+        if let Some(t) = toolchain
+        {
+            profilemgr.load(t)?;
+        }
         if !profilemgr.exists()
         {
             return Err(Error::Generic(ErrorDomain::Builder, String::from("Unable to load project profile; did you forget to run fpkg install?")))
