@@ -329,12 +329,15 @@ fn install_sub_directory(path: &Path, platform: Option<&str>) -> Result<Vec<Stri
     };
     file.open_libs()?;
     file.open(&path)?;
-    let mut props = None;
-    if file.has_func_configure()
+    if !profilemgr.exists()
     {
-        props = Some(file.func_configure(toolchain)?);
+        let mut props = None;
+        if file.has_func_configure()
+        {
+            props = Some(file.func_configure(toolchain)?);
+        }
+        profilemgr.install(toolchain, props)?;
     }
-    profilemgr.install(toolchain, props)?;
     let profile = profilemgr.get_current()?;
     if file.has_func_install()
     {

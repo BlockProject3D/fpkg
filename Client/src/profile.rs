@@ -228,7 +228,6 @@ impl ProfileManager
     {
         if self.exists()
         {
-            //TODO: diagnose why this crap always keep rethrowing instead of continuing to the dependency resolver
             return Err(Error::Generic(ErrorDomain::Profile, String::from("The current profile has already been installed")));
         }
         if let Err(e) = self.mkdir()
