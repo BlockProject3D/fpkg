@@ -237,6 +237,10 @@ impl ProfileManager
 
     pub fn install(&mut self, toolchain: &str, toolchain_props: Option<HashMap<String, String>>) -> Result<Box<dyn Toolchain>>
     {
+        if toolchain != self.toolchain_name
+        {
+            self.current_profile = None;
+        }
         if self.exists()
         {
             return Err(Error::Generic(ErrorDomain::Profile, String::from("The current profile has already been installed")));

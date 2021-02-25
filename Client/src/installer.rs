@@ -329,7 +329,7 @@ fn install_sub_directory(path: &Path, toolchain: Option<&str>) -> Result<Vec<Str
     file.open_libs(path)?;
     let path = Path::new(path).join("fpkg.lua");
     file.open(&path)?;
-    if !profilemgr.exists()
+    if !profilemgr.exists() || profilemgr.get_toolchain() != toolchain
     {
         let mut props = None;
         if file.has_func_configure()
