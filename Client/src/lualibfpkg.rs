@@ -30,6 +30,9 @@ use rlua::Context;
 use rlua::Result;
 use rlua::Error;
 use rlua::Table;
+use rlua::Value;
+use std::path::Path;
+use std::fs::read_to_string;
 
 use crate::luaengine::Compiler;
 
@@ -48,6 +51,8 @@ fn fpkg_project(ctx: Context<'_>, table: Table) -> Result<()>
     let compilers: Option<Vec<Compiler>> = table.get("compilers")?;
     let meta = ctx.create_table()?;
     let copy = ctx.create_table()?;
+    let project_home: String = ctx.named_registry_value("PROJECT_HOME")?;
+    meta.set("home", project_home)?;
     meta.set("name", name.clone())?;
     meta.set("description", desc.clone())?;
     meta.set("version", version.clone())?;
@@ -67,10 +72,66 @@ fn fpkg_project(ctx: Context<'_>, table: Table) -> Result<()>
     return Ok(());
 }
 
+fn fpkg_add_lua_path(ctx: Context<'_>, asbdh: String) -> Result<()>
+{
+    let path: Table = ctx.named_registry_value("LUA_PATH")?;
+    path.set(path.len()? + 1, asbdh)?;
+    return Ok(());
+}
+
+fn fpkg_get_lua_path(ctx: Context<'_>, (): ()) -> Result<Table>
+{
+    let path: Table = ctx.named_registry_value("LUA_PATH")?;
+    return Ok(path.clone());
+}
+
+fn dofile(ctx: Context<'_>, file: String) -> Result<Value>
+{
+    match read_to_string(&file)
+    {
+        Ok(content) =>
+        {
+            let v = ctx.load(&content).set_name(file.as_bytes())?.call(())?;
+            return Ok(v);
+        },
+        Err(e) => return Err(Error::RuntimeError(format!("IO error: {}", e)))
+    };
+}
+
+fn base_require(ctx: Context<'_>, module_name: String) -> Result<Value>
+{
+    if module_name.ends_with(".lua") //Load a standalone Lua file
+    {
+        return dofile(ctx, module_name);
+    }
+    let project_home: String = ctx.named_registry_value("PROJECT_HOME")?;
+    let path: Table = ctx.named_registry_value("LUA_PATH")?;
+    for i in 1..path.len()? + 1  //Search the path for a corresponding Lua file
+    {
+        let s: String = path.get(i)?;
+        let mut file: String = [&s, "/", &module_name, ".lua"].concat().replace("%PROJECT_HOME%", &project_home);
+        if let Some(dir) = dirs::home_dir()
+        {
+            file = file.replace("%USER_HOME%", &dir.to_string_lossy());
+        }
+        if Path::new(&file).exists()
+        {
+            return dofile(ctx, file);
+        }
+    }
+    return Err(Error::RuntimeError(format!("Could not find module {} in search path", module_name)));
+}
+
 pub fn open_libfpkg(ctx: Context<'_>) -> Result<()>
 {
+    let path = ctx.create_table()?;
+    path.set(1, "%PROJECT_HOME%/.fpkg/lua")?;
+    ctx.set_named_registry_value("LUA_PATH", path)?;
     let tbl = ctx.create_table()?;
     tbl.set("project", ctx.create_function(fpkg_project)?)?;
+    tbl.set("addLuaPath", ctx.create_function(fpkg_add_lua_path)?)?;
+    tbl.set("getLuaPath", ctx.create_function(fpkg_get_lua_path)?)?;
     ctx.globals().set("fpkg", tbl)?;
+    ctx.globals().set("require", ctx.create_function(base_require)?)?;
     return Ok(());
 }

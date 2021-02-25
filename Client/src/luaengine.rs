@@ -275,10 +275,11 @@ impl LuaFile
         }
     }
 
-    pub fn open_libs(&mut self) -> Result<()>
+    pub fn open_libs(&mut self, project_home: &Path) -> Result<()>
     {
         let res = self.state.context(|ctx|
         {
+            ctx.set_named_registry_value("PROJECT_HOME", String::from(project_home.to_string_lossy()))?;
             let globals = ctx.globals();
             //Blacklist start
             let os = globals.get::<_, rlua::Table>("os")?;

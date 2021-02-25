@@ -190,7 +190,7 @@ pub fn package(path: &Path, toolchain: Option<&str>) -> Result<i32>
     let profile = profilemgr.get_current()?;
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();
-    lua.open_libs()?;
+    lua.open_libs(path)?;
     lua.open(&p)?;
     let package = lua.read_table()?;
     println!("Packaging {} - {} ({}) with Lua Engine...", package.name, package.version, package.description);

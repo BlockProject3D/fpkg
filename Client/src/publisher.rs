@@ -51,7 +51,7 @@ pub fn publish(path: &Path, registry: Option<&str>) -> Result<i32>
     let profile = profilemgr.get_current()?;
     let p: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
     let mut lua = LuaFile::new();
-    lua.open_libs()?;
+    lua.open_libs(path)?;
     lua.open(&p)?;
     let package = lua.read_table()?;
     let pkg = Package::new(&package.name, &package.version);

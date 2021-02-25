@@ -128,13 +128,13 @@ impl Builder for LuaBuilder
 {
     fn can_build(&self, path: &Path) -> bool
     {
-        let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
-        if !path.exists()
+        let path1: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
+        if !path1.exists()
         {
             return false;
         }
         let mut lua = LuaFile::new();
-        if !lua.open_libs().is_ok() || !lua.open(&path).is_ok()
+        if !lua.open_libs(path).is_ok() || !lua.open(&path1).is_ok()
         {
             return true;
         }
@@ -153,9 +153,9 @@ impl Builder for LuaBuilder
             return Err(Error::Generic(ErrorDomain::Builder, String::from("Unable to load project profile; did you forget to run fpkg install?")))
         }
         let profile = profilemgr.get_current()?;
-        let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
         let mut lua = LuaFile::new();
-        lua.open_libs()?;
+        lua.open_libs(path)?;
+        let path: PathBuf = [path, Path::new("fpkg.lua")].iter().collect();
         lua.open(&path)?;
         let package = lua.read_table()?;
         let acfg = check_build_configuration(config, &package.configurations)?;

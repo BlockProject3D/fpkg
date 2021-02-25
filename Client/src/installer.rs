@@ -320,14 +320,14 @@ fn install_sub_directory(path: &Path, toolchain: Option<&str>) -> Result<Vec<Str
     let mut res = Vec::new();
     let mut profilemgr = ProfileManager::new(path)?;
     let registries = settings.get_registries();
-    let path = Path::new(path).join("fpkg.lua");
     let mut file = LuaFile::new();
     let toolchain = match toolchain
     {
         Some(v) => v,
         None => "host"
     };
-    file.open_libs()?;
+    file.open_libs(path)?;
+    let path = Path::new(path).join("fpkg.lua");
     file.open(&path)?;
     if !profilemgr.exists()
     {
