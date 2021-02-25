@@ -3,5 +3,5 @@ target
 Debug
 Release
 zlib
-zlib-Debug
-zlib-Release
+build-Debug
+build-Release

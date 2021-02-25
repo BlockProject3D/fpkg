@@ -5,27 +5,30 @@ fpkg.project({
     configurations = {"Debug", "Release"}
 })
 
+fpkg.addLuaPath("./")
+local cmake = require("cmake")
+
 function Project:build(profile)
     if not(file.isDirectory("zlib")) then
         command.run("git", {"clone", "https://github.com/madler/zlib.git"})
     end
-    if not(file.isDirectory("zlib-"..profile.configuration)) then
-        if not(profile.platform == "Windows") then
-            command.run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.configuration, "-DCMAKE_BUILD_TYPE="..profile.configuration, "-DCMAKE_INSTALL_PREFIX="..profile.configuration, "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"})
-        else
-            command.run("cmake", {"-S", "zlib", "-B", "zlib-"..profile.configuration, "-DCMAKE_BUILD_TYPE="..profile.configuration, "-DCMAKE_INSTALL_PREFIX="..profile.configuration})
-        end
-    end
-    command.run("cmake", {"--build", "zlib-"..profile.configuration, "--config", profile.configuration, "--target", "zlibstatic"})
+    cmake.build(profile, {
+        sourceDirectory = "zlib",
+        cmakeArgs = {
+            "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+        },
+        target = "zlibstatic"
+    })
 end
 
 function Project:package(profile)
-    for _, v in pairs(self.configurations) do
-        local tbl = profile;
-        tbl.configuration = v;
-        self:build(tbl)
-        command.run("cmake", {"--build", "zlib-"..v, "--target", "install", "--config", v})
-    end
+    cmake.buildAllConfigurations(profile, {
+        sourceDirectory = "zlib",
+        cmakeArgs = {
+            "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+        },
+        targets = {"zlibstatic", "install"}
+    })
     local filenamed = "libz.a"
     local filename = "libz.a"
     if (profile.platform == "Windows") then
