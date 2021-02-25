@@ -29,10 +29,9 @@ function Project:package(profile)
         },
         targets = {"zlibstatic", "install"}
     })
-    local filenamed = "libz.a"
     local filename = "libz.a"
     if (profile.platform == "Windows") then
-        filenamed = "zlibstaticd.lib"
+        file.rename("./Debug/lib/zlibstaticd.lib", "./Debug/lib/zlibstatic.lib")
         filename = "zlibstatic.lib"
     end
     local target = {
@@ -42,7 +41,7 @@ function Project:package(profile)
             {"./Debug/include", "Debug"}
         },
         binaries = { --Only for Library targets
-            {"./Debug/lib/"..filenamed, "Debug"}, --Relative path, configuration type
+            {"./Debug/lib/"..filename, "Debug"}, --Relative path, configuration type
             {"./Release/lib/"..filename, "Release"}
         }
     }
