@@ -408,6 +408,20 @@ impl LuaFile
         }
     }
 
+    pub fn has_func_run(&self) -> bool
+    {
+        let res = self.state.context(|ctx|
+        {
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            return meta.contains_key("run");
+        });
+        match res
+        {
+            Ok(v) => return v,
+            Err(_) => return false
+        }
+    }
+
     fn func_install_internal(&mut self, tool: &mut InstallTool, profile: &Profile) -> rlua::Result<()>
     {
         return self.state.context(|ctx|
@@ -477,6 +491,24 @@ impl LuaFile
                 Some(v) => return Ok(v),
                 None => return Ok(0)
             }
+        });
+        match res
+        {
+            Ok(v) => return Ok(v),
+            Err(e) => return Err(Error::Lua(ErrorDomain::LuaEngine, e))
+        }
+    }
+
+    pub fn func_run(&mut self, profile: &Profile, args: Vec<&str>) -> Result<i32>
+    {
+        let res = self.state.context(|ctx|
+        {
+            let meta: rlua::Table = ctx.globals().get("Project")?;
+            let mut tbl = ctx.create_table()?;
+            profile.fill_table(&mut tbl)?;
+            let func: rlua::Function = meta.get("run")?;
+            let res: i32 = func.call((meta, tbl, args))?;
+            return Ok(res);
         });
         match res
         {

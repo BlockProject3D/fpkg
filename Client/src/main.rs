@@ -51,11 +51,14 @@
 //  - A package will be distributed as a compressed archive file containing builds for all configurations of a given platform.
 mod command;
 mod profile;
+mod common;
+mod settings;
+
+//Commands implementations
 mod installer;
 mod packager;
 mod publisher;
-mod common;
-mod settings;
+mod scripts;
 
 //Lua Engine
 mod luaengine;
@@ -171,6 +174,24 @@ fn handle_publish_command(registry: Option<&str>) -> i32
     }
 }
 
+fn handle_run_command(toolchain: Option<&str>, args: Vec<&str>) -> i32
+{
+    match scripts::run_script(toolchain, Path::new("./"), args)
+    {
+        Ok(v) => return v,
+        Err(e) =>
+        {
+            match e
+            {
+                common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
+                common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
+                common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
+            }
+            return 1;
+        }
+    }
+}
+
 fn main() {
     let matches = clap_app!(fpkg =>
         (version: "1.0")
@@ -193,6 +214,11 @@ fn main() {
         (@subcommand install =>
             (about: "Install all required dependencies and SDKs")
             (@arg toolchain: +takes_value -t --toolchain "Specifies the toolchain to install packages for. Defaults to the host toolchain.")
+        )
+        (@subcommand run =>
+            (about: "Run custom lua scripts")
+            (@arg toolchain: +takes_value -t --toolchain "Specifies the toolchain to install packages for. Defaults to the host toolchain.")
+            (@arg args: min_values(1) "The arguments to pass to the custom script args[0] usually refers to the script name.")
         )
     ).get_matches();
 
@@ -219,5 +245,10 @@ fn main() {
         {
             std::process::exit(handle_publish_command(matches.value_of("registry")));
         }
+    }
+    if let Some(matches) = matches.subcommand_matches("run")
+    {
+        let vec = matches.values_of("args").unwrap().collect();
+        std::process::exit(handle_run_command(matches.value_of("toolchain"), vec));
     }
 }
