@@ -61,7 +61,7 @@ fn lua_format(format: String, args: Vec<String>) -> String
                     finalstr.push_str(&args[idx]);
                     idx += 1;
                 }
-                else
+                else if c != '{'
                 {
                     finalstr.push(c);
                 }
