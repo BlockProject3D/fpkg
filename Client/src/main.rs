@@ -87,6 +87,9 @@ mod toolchain;
 mod hosttoolchain;
 
 use std::path::Path;
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
 use clap::clap_app;
 
 fn handle_install_command(toolchain: Option<&str>) -> i32
@@ -193,7 +196,40 @@ fn handle_run_command(toolchain: Option<&str>, args: Vec<&str>) -> i32
     }
 }
 
+fn extract_resource(modules: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()>
+{
+    let p = modules.join(name);
+    if !p.exists()
+    {
+        let mut f = File::create(&p)?;
+        let mut cursor: usize = 0;
+        let mut remaining = bytes.len();
+        while remaining > 0
+        {
+            let written = f.write(&bytes[cursor..std::cmp::min(8192, remaining)])?;
+            cursor += written;
+            remaining -= written;
+        }
+    }
+    return Ok(());
+}
+
+fn initial_setup() -> std::io::Result<()>
+{
+    if let Some(dir) = dirs::data_dir()
+    {
+        let modules: PathBuf = [&dir, Path::new("fpkg-lua-modules")].iter().collect();
+        if !modules.exists()
+        {
+            std::fs::create_dir(&modules)?;
+        }
+        extract_resource(&modules, "cmake.lua", include_bytes!("../lua/cmake.lua"))?;
+    }
+    return Ok(());
+}
+
 fn main() {
+    initial_setup().unwrap();
     let matches = clap_app!(fpkg =>
         (version: "1.0")
         (author: "BlockProject3D <https://github.com/BlockProject3D>")
