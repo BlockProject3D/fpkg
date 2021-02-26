@@ -47,3 +47,11 @@ function Project:package(profile)
     }
     return target
 end
+
+function Project:run(profile, args)
+    print("lua test custom script run")
+    log.info("This is a test info log")
+    log.warning("This is a test warning log")
+    log.error("This is a test error log")
+    log.info("The current profile is {} and args are {}", profile, args)
+end
