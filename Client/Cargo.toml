@@ -1,6 +1,9 @@
 [package]
 name = "fpkg"
-version = "0.1.0"
+version = "1.0.0"
+description = "C++ package manager intended to unify various steps of software development."
+repository = "https://gitlab.com/BlockProject3D/fpkg"
+license = "BSD-3-Clause"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2018"
 
