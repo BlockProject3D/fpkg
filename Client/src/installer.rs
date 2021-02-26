@@ -150,7 +150,7 @@ fn unpack_bpx(file: &Path, folder: &Path) -> Result<()>
     return Ok(());
 }
 
-fn install_dependency(dep: &Dependency, profilemgr: &ProfileManager, registries: &Vec<RegistryInfo>) -> Result<()>
+fn install_dependency(dep: &Dependency, profilemgr: &ProfileManager, registries: &Vec<&RegistryInfo>) -> Result<()>
 {
     let profile = profilemgr.get_current()?;
     println!("Installing dependency {} - {}...", &dep.name, &dep.version);

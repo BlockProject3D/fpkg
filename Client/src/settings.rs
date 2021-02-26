@@ -46,6 +46,7 @@ const PATH_LOCAL_REG: &str = "local://C:/fpkg/";
 #[derive(Clone)]
 pub struct RegistryInfo
 {
+    pub priority: i32,
     pub base_url: String,
     pub access_token: Option<String>
 }
@@ -53,12 +54,14 @@ pub struct RegistryInfo
 pub struct Settings
 {
     default_registry: String,
-    registries: HashMap<String, RegistryInfo>
+    registry_map: HashMap<String, RegistryInfo>,
+    registry_list: Vec<String>
 }
 
 fn read_settings(path: &Path) -> Result<Settings>
 {
     let mut map = HashMap::new();
+    let mut list = Vec::new();
     let res = match fs::read_to_string(path)
     {
         Ok(v) => v,
@@ -86,11 +89,28 @@ fn read_settings(path: &Path) -> Result<Settings>
                     Some(v) => Some(String::from(v)),
                     None => None
                 };
-                map.insert(String::from(key), RegistryInfo
+                let priority = match val["Priority"].as_number()
                 {
+                    Some(v) =>
+                    {
+                        let useless: f64 = v.into();
+                        useless as i32
+                    },
+                    None => 0
+                };
+                let mut key = String::from(key);
+                if map.contains_key(&key)
+                {
+                    key.push('-');
+                    key.push_str(&(map.len() + 1).to_string());
+                }
+                map.insert(key.clone(), RegistryInfo
+                {
+                    priority: priority,
                     base_url: String::from(url),
                     access_token: token
                 });
+                list.push(key);
             }
         },
         _ => return Err(Error::Generic(ErrorDomain::Settings, String::from("Invalid type for 'Registries' key")))
@@ -122,10 +142,17 @@ fn read_settings(path: &Path) -> Result<Settings>
     {
         return Err(Error::Generic(ErrorDomain::Settings, String::from("Default registry does not exist")));
     }
+    list.sort_by(|a, b|
+    {
+        let v = map[a].priority;
+        let v1 = map[b].priority;
+        return v1.cmp(&v);
+    });
     return Ok(Settings
     {
         default_registry: default.unwrap(),
-        registries: map
+        registry_map: map,
+        registry_list: list
     });
 }
 
@@ -146,23 +173,25 @@ impl Settings
         let mut map = HashMap::new();
         map.insert(String::from("LocalSystem"), RegistryInfo
         {
+            priority: 0,
             base_url: String::from(PATH_LOCAL_REG),
             access_token: None
         });
         return Ok(Settings
         {
             default_registry: String::from("LocalSystem"),
-            registries: map
+            registry_map: map,
+            registry_list: vec!(String::from("LocalSystem"))
         });
     }
 
-    pub fn get_registries(&self) -> Vec<RegistryInfo>
+    pub fn get_registries(&self) -> Vec<&RegistryInfo>
     {
         let mut res = Vec::new();
 
-        for (_, v) in &self.registries
+        for v in &self.registry_list
         {
-            res.push(v.clone());
+            res.push(&self.registry_map[v]);
         }
         return res;
     }
@@ -171,10 +200,10 @@ impl Settings
     {
         match name
         {
-            None => return Ok(&self.registries[&self.default_registry]),
+            None => return Ok(&self.registry_map[&self.default_registry]),
             Some(v) =>
             {
-                match &self.registries.get(&String::from(v))
+                match &self.registry_map.get(&String::from(v))
                 {
                     None => return Err(Error::Generic(ErrorDomain::Settings, format!("Registry {} does not exist", v))),
                     Some(v) => return Ok(v)
