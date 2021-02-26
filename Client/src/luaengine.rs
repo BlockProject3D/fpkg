@@ -46,6 +46,7 @@ use crate::lualibfile::open_libfile;
 use crate::lualibcommand::open_libcommand;
 use crate::lualibstring::open_libstring;
 use crate::lualibfpkg::open_libfpkg;
+use crate::lualiblog::open_liblog;
 
 #[derive(Clone)]
 pub struct Compiler
@@ -311,6 +312,7 @@ impl LuaFile
             open_libcommand(ctx)?;
             open_libstring(ctx)?;
             open_libfpkg(ctx)?;
+            open_liblog(ctx)?;
             return Ok(());
         });
         match res

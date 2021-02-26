@@ -63,6 +63,7 @@ mod lualibfile;
 mod lualibcommand;
 mod lualibstring;
 mod lualibfpkg;
+mod lualiblog;
 
 //Registry implementations
 mod registry;
