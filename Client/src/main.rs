@@ -249,7 +249,14 @@ fn main() {
     }
     if let Some(matches) = matches.subcommand_matches("run")
     {
-        let vec = matches.values_of("args").unwrap().collect();
-        std::process::exit(handle_run_command(matches.value_of("toolchain"), vec));
+        if let Some(useless) = matches.values_of("args")
+        {
+            let vec = useless.collect();
+            std::process::exit(handle_run_command(matches.value_of("toolchain"), vec));
+        }
+        else
+        {
+            std::process::exit(handle_run_command(matches.value_of("toolchain"), Vec::new()));
+        }
     }
 }
