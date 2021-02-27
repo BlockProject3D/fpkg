@@ -30,7 +30,9 @@ use std::path::Path;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use derive_more::Display;
 
+#[derive(Display)]
 pub enum ErrorDomain
 {
     Profile,

@@ -49,6 +49,7 @@
 //  - Optionally a package can provide binarries for any other platform even Android
 //  - Any package that does not respect any of the previous requirements may still be published but not to the main registry
 //  - A package will be distributed as a compressed archive file containing builds for all configurations of a given platform.
+
 mod command;
 mod profile;
 mod common;
@@ -92,21 +93,50 @@ use std::fs::File;
 use std::io::Write;
 use clap::clap_app;
 
-fn handle_install_command(toolchain: Option<&str>) -> i32
+trait ResultType
 {
-    match installer::install(toolchain)
+    fn code(&self) -> i32;
+}
+
+impl ResultType for i32
+{
+    fn code(&self) -> i32
     {
+        return *self;
+    }
+}
+
+impl ResultType for ()
+{
+    fn code(&self) -> i32
+    {
+        return 0;
+    }
+}
+
+//error_code: 1 = Generic, 2 = Io, 3 = Lua
+fn handle_err(domain: common::ErrorDomain, error: String, error_code: i32) -> i32
+{
+    eprintln!("In domain: {}", domain);
+    eprintln!("\t{}", error);
+    return error_code;
+}
+
+fn handle_result<T: ResultType>(res: common::Result<T>) -> i32
+{
+    match res
+    {
+        Ok(v) => v.code(),
         Err(e) =>
         {
-            match e
+            let res = match e
             {
-                common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
-                common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
-                common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
-            }
-            return 1;
+                common::Error::Io(d, v) => handle_err(d, format!("\tAn io error has occured: {}", v), 2),
+                common::Error::Lua(d, v) => handle_err(d, format!("\tA lua error has occured: {}", v), 3),
+                common::Error::Generic(d, v) => handle_err(d, format!("\tAn error has occured: {}", v), 1)
+            };
+            return res;
         }
-        Ok(()) => return 0
     }
 }
 
@@ -122,77 +152,7 @@ fn handle_build_command(config: &str, toolchain: Option<&str>) -> i32
             eprintln!("No valid builder found for current project");
             return 1;
         }
-        Some(b) =>
-        {
-            match b.run_build(config, path, toolchain)
-            {
-                Ok(res) => return res,
-                Err(e) =>
-                {
-                    match e
-                    {
-                        common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
-                        common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
-                        common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
-                    }
-                    return 1;
-                }
-            }
-        }
-    }
-}
-
-fn handle_package_command(toolchain: Option<&str>) -> i32
-{
-    match packager::package(Path::new("./"), toolchain)
-    {
-        Ok(v) => return v,
-        Err(e) =>
-        {
-            match e
-            {
-                common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
-                common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
-                common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
-            }
-            return 1;
-        }
-    }
-}
-
-fn handle_publish_command(registry: Option<&str>) -> i32
-{
-    match publisher::publish(Path::new("./"), registry)
-    {
-        Ok(v) => return v,
-        Err(e) =>
-        {
-            match e
-            {
-                common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
-                common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
-                common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
-            }
-            return 1;
-        }
-    }
-}
-
-fn handle_run_command(toolchain: Option<&str>, args: Vec<&str>) -> i32
-{
-    match scripts::run_script(toolchain, Path::new("./"), args)
-    {
-        Ok(v) => return v,
-        Err(e) =>
-        {
-            match e
-            {
-                common::Error::Io(_, v) => eprintln!("An io error has occured: {}", v),
-                common::Error::Lua(_, v) => eprintln!("A lua error has occured: {}", v),
-                common::Error::Generic(_, v) => eprintln!("An error has occured: {}", v)
-            }
-            return 1;
-        }
+        Some(b) => return handle_result(b.run_build(config, path, toolchain))
     }
 }
 
@@ -261,7 +221,7 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("install")
     {
-        std::process::exit(handle_install_command(matches.value_of("toolchain")));
+        std::process::exit(handle_result(installer::install(matches.value_of("toolchain"))));
     }
     if let Some(matches) = matches.subcommand_matches("build")
     {
@@ -273,14 +233,14 @@ fn main() {
     }
     if let Some(matches) = matches.subcommand_matches("package")
     {
-        let res = handle_package_command(matches.value_of("toolchain"));
+        let res = handle_result(packager::package(Path::new("./"), matches.value_of("toolchain")));
         if res != 0
         {
             std::process::exit(res);
         }
         if matches.is_present("publish")
         {
-            std::process::exit(handle_publish_command(matches.value_of("registry")));
+            std::process::exit(handle_result(publisher::publish(Path::new("./"), matches.value_of("registry"))));
         }
     }
     if let Some(matches) = matches.subcommand_matches("run")
@@ -288,11 +248,11 @@ fn main() {
         if let Some(useless) = matches.values_of("args")
         {
             let vec = useless.collect();
-            std::process::exit(handle_run_command(matches.value_of("toolchain"), vec));
+            std::process::exit(handle_result(scripts::run_script(matches.value_of("toolchain"), Path::new("./"), vec)));
         }
         else
         {
-            std::process::exit(handle_run_command(matches.value_of("toolchain"), Vec::new()));
+            std::process::exit(handle_result(scripts::run_script(matches.value_of("toolchain"), Path::new("./"), Vec::new())));
         }
     }
 }
