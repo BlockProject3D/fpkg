@@ -84,7 +84,7 @@ test-win64:
 #------------------#
 get-version:
     stage: build
-    image: alpine
+    image: debian:stable
     only:
         - master
     script:
@@ -136,7 +136,7 @@ build-release-win64:
 
 upload-artifacts:
     stage: upload
-    image: alpine
+    image: debian:stable
     only:
         - master
     tags:
