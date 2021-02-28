@@ -95,7 +95,7 @@ get-version:
         - grep -P 'version = "\d.\d.\d"' Cargo.toml | grep -oP '\d.\d.\d' | cat > versionfile.txt
     artifacts:
         paths:
-            - versionfile.txt
+            - Client/versionfile.txt
 
 build-release-linux:
     stage: build
@@ -153,8 +153,8 @@ upload-artifacts:
         - echo "fpkg v${PACKAGE_VERSION}"
         - |
           {
-              echo ${WINDOWS_BIN} > windowsfile.txt
-              echo ${LINUX_BIN} > linuxfile.txt
+              echo ${WINDOWS_BIN} > Client/windowsfile.txt
+              echo ${LINUX_BIN} > Client/linuxfile.txt
           }
         - |
           {
@@ -168,8 +168,8 @@ upload-artifacts:
           }
     artifacts:
         paths:
-            - windowsfile.txt
-            - linuxfile.txt
+            - Client/windowsfile.txt
+            - Client/linuxfile.txt
 
 create-release:
   stage: release
@@ -181,8 +181,8 @@ create-release:
     - master
   script:
     - PACKAGE_VERSION=$(cat Client/versionfile.txt)
-    - WINDOWS_BIN=$(cat windowsfile.txt)
-    - LINUX_BIN=$(cat linuxfile.txt)
+    - WINDOWS_BIN=$(cat Client/windowsfile.txt)
+    - LINUX_BIN=$(cat Client/linuxfile.txt)
     - echo "fpkg v${PACKAGE_VERSION}"
     - |
       release-cli create --name "fpkg release ${PACKAGE_VERSION}" --tag-name ${PACKAGE_VERSION} \
