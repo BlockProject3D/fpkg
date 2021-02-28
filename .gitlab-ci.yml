@@ -1,7 +1,15 @@
 stages:
     - build
     - test
+    - upload
+    - release
 
+variables:
+  PACKAGE_REG_URL: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/fpkg
+
+#------------------#
+#  Debug pipeline  #
+#------------------#
 .build-script:
     stage: build
     script:
@@ -19,6 +27,9 @@ stages:
         - perl test/test.pl
 
 build-linux:
+    stage: build
+    except:
+        - master
     image: "rust:latest"
     extends:
         - .build-script
@@ -27,6 +38,9 @@ build-linux:
             - BPXTools/target/debug/bpxdbg
 
 build-win64:
+    stage: build
+    except:
+        - master
     tags:
         - windows
         - shared-windows
@@ -40,12 +54,18 @@ build-win64:
             - BPXTools/target/debug/bpxdbg.exe
 
 test-linux:
+    stage: test
+    except:
+        - master
     image: perl:5.32.1-threaded
     needs: [build-linux]
     extends:
         - .test-script
 
 test-win64:
+    stage: test
+    except:
+        - master
     needs: [build-win64]
     tags:
         - windows
@@ -57,3 +77,114 @@ test-win64:
         - refreshenv
     extends:
         - .test-script
+
+
+#------------------#
+# Release pipeline #
+#------------------#
+get-version:
+    stage: build
+    image: alpine
+    only:
+        - master
+    script:
+        - cd Client
+        # Part 1 > extract the version line
+        # Part 2 > extract the version string itself
+        # Part 3 > remove colors
+        - grep -P 'version = "\d.\d.\d"' Cargo.toml | grep -oP '\d.\d.\d' | cat > versionfile.txt
+    artifacts:
+        paths:
+            - versionfile.txt
+
+build-release-linux:
+    stage: build
+    image: "rust:latest"
+    only:
+        - master
+    before_script:
+        - cargo install cargo-deb
+    script:
+        - cd Client
+        - cargo build --release
+        - cargo deb
+    artifacts:
+        paths:
+            - target/debian
+
+build-release-win64:
+    stage: build
+    only:
+        - master
+    tags:
+        - windows
+        - shared-windows
+        - windows-1809
+    before_script:
+        - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+        - choco install -y rust-ms
+        - choco install wixtoolset
+        - cargo install cargo-wix
+    script:
+        - cd Client
+        - cargo build --release
+        - cargo wix
+        - cargo wix sign
+    artifacts:
+        paths:
+            - target/wix
+
+upload-artifacts:
+    stage: upload
+    image: alpine
+    only:
+        - master
+    tags:
+        - linux
+        - docker
+    dependencies:
+        - build-release-win64
+        - build-release-linux
+        - get-version
+    script:
+        - PACKAGE_VERSION=$(cat Client/versionfile.txt)
+        - WINDOWS_BIN=$(ls Client/target/wix/ | grep -P '.\.msi' | cat)
+        - LINUX_BIN=$(ls Client/target/debian/ | grep -P '.\.deb' | cat)
+        - echo "fpkg v${PACKAGE_VERSION}"
+        - |
+          {
+              echo ${WINDOWS_BIN} > windowsfile.txt
+              echo ${LINUX_BIN} > linuxfile.txt
+          }
+        - |
+          {
+              echo "Uploading windows release (${WINDOWS_BIN})..."
+              curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file Client/target/wix/*.msi "${PACKAGE_REG_URL}/${PACKAGE_VERSION}/${WINDOWS_BIN}"
+          }
+        - |
+          {
+              echo "Uploading linux release (${LINUX_BIN})..."
+              curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file Client/target/debian/*.deb "${PACKAGE_REG_URL}/${PACKAGE_VERSION}/${LINUX_BIN}"
+          }
+    artifacts:
+        paths:
+            - windowsfile.txt
+            - linuxfile.txt
+
+create-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - get-version
+    - upload-artifacts
+  only:
+    - master
+  script:
+    - PACKAGE_VERSION=$(cat Client/versionfile.txt)
+    - WINDOWS_BIN=$(cat windowsfile.txt)
+    - LINUX_BIN=$(cat linuxfile.txt)
+    - echo "fpkg v${PACKAGE_VERSION}"
+    - |
+      release-cli create --name "fpkg release ${PACKAGE_VERSION}" --tag-name ${PACKAGE_VERSION} \
+        --assets-link "{\"name\":\"${WINDOWS_BIN}\",\"url\":\"${PACKAGE_REG_URL}/${PACKAGE_VERSION}/${WINDOWS_BIN}\"}" \
+        --assets-link "{\"name\":\"${LINUX_BIN}\",\"url\":\"${PACKAGE_REG_URL}/${PACKAGE_VERSION}/${LINUX_BIN}\"}" \
