@@ -110,7 +110,7 @@ build-release-linux:
         - cargo deb
     artifacts:
         paths:
-            - target/debian
+            - Client/target/debian
 
 build-release-win64:
     stage: build
@@ -123,7 +123,7 @@ build-release-win64:
     before_script:
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         - choco install -y rust-ms
-        - choco install wixtoolset
+        - choco install -y wixtoolset
         - cargo install cargo-wix
     script:
         - cd Client
@@ -132,7 +132,7 @@ build-release-win64:
         - cargo wix sign
     artifacts:
         paths:
-            - target/wix
+            - Client/target/wix
 
 upload-artifacts:
     stage: upload
