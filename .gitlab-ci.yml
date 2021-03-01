@@ -121,9 +121,10 @@ build-release-win64:
         - shared-windows
         - windows-1809
     before_script:
+        - Install-WindowsFeature Net-Framework-Core
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         - choco install -y rust-ms
-        - choco install -y wixtoolset
+        - choco install wixtoolset --version 3.11.2 -y
         - cargo install cargo-wix
     script:
         - cd Client
