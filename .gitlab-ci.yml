@@ -126,6 +126,7 @@ build-release-win64:
         - choco install -y rust-ms
         - choco install wixtoolset --version 3.11.2 -y
         - cargo install cargo-wix
+        - setx /M PATH "%PATH%;C:\Program Files (x86)\WiX Toolset v3.11\bin"
     script:
         - cd Client
         - cargo build --release
