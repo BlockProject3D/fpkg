@@ -1,19 +1,20 @@
 function global:startsection($id, $title, $collapsed) {
-    #Param([parameter(Position=0)]$id,
-    #  [parameter(Position=1)]$title,
-    #  [parameter(Position=2)]$collapsed)
-
     $date = Get-Date (Get-Date).ToUniversalTime() -UFormat %s
+    #Oh my god PowerShell really wants to be the best peace of shit shell of all times. Seriously even the raw sh from linux does not have so many defects!
+    $ESC = [char] 27 
+    $CR = [char] 13
 
     if ( $collapsed -eq $null ) {
-        echo "`e[0Ksection_start:${date}:${id}`r`e[0K`e[1m${title}`e[0m"
+        echo "$ESC[0Ksection_start:${date}:${id}$CR$ESC[0K$ESC[1m${title}$ESC[0m"
     } else {
-        echo "`e[0Ksection_start:${date}:${id}[collapsed=true]`r`e[0K`e[1m${title}`e[0m"
+        echo "$ESC[0Ksection_start:${date}:${id}[collapsed=true]$CR$ESC[0K$ESC[1m${title}$ESC[0m"
     }
 }
 
 function global:endsection($id) {
     $date = Get-Date (Get-Date).ToUniversalTime() -UFormat %s
+    $ESC = [char] 27 
+    $CR = [char] 13
 
-    echo "`e[0Ksection_end:${date}:${id}`r`e[0K"
+    echo "$ESC[0Ksection_end:${date}:${id}$CR$ESC[0K"
 }
