@@ -38,7 +38,7 @@ build-linux:
     extends:
         - .build-script
     before_script:
-        - . ./gitlab/support/unix.sh
+        - . ./.gitlab/support/unix.sh
     artifacts:
         paths:
             - BPXTools/target/debug/bpxdbg
@@ -52,7 +52,7 @@ build-win64:
         - shared-windows
         - windows-1809
     before_script:
-        - . ./gitlab/support/windows.ps1
+        - . ./.gitlab/support/windows.ps1
         - startsection deps "Install job dependencies"
         - choco install -y rust-ms
         - endsection deps
@@ -69,7 +69,7 @@ test-linux:
     image: perl:5.32.1-threaded
     needs: [build-linux]
     before_script:
-        - . ./gitlab/support/unix.sh
+        - . ./.gitlab/support/unix.sh
     extends:
         - .test-script
 
@@ -83,7 +83,7 @@ test-win64:
         - shared-windows
         - windows-1809
     before_script:
-        - . ./gitlab/support/windows.ps1
+        - . ./.gitlab/support/windows.ps1
         - startsection deps "Install job dependencies"
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         - choco install -y strawberryperl
@@ -117,7 +117,7 @@ build-release-linux:
     only:
         - master
     before_script:
-        - . ./gitlab/support/unix.sh
+        - . ./.gitlab/support/unix.sh
         - startsection deps "Install job dependencies"
         - cargo install cargo-deb
         - endsection deps
@@ -140,7 +140,7 @@ build-release-win64:
         - shared-windows
         - windows-1809
     before_script:
-        - . ./gitlab/support/windows.ps1
+        - . ./.gitlab/support/windows.ps1
         - startsection deps "Install job dependencies"
         - Install-WindowsFeature Net-Framework-Core
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
