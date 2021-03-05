@@ -5,9 +5,9 @@ function global:startsection($id, $title, $collapsed) {
     $CR = [char] 13
 
     if ( $collapsed -eq $null ) {
-        echo "$ESC[0Ksection_start:${date}:${id}$CR$ESC[0K$ESC[1m${title}$ESC[0m"
+        echo "${ESC}[0Ksection_start:${date}:${id}${CR}${ESC}[0K${ESC}[1m${title}${ESC}[0m"
     } else {
-        echo "$ESC[0Ksection_start:${date}:${id}[collapsed=true]$CR$ESC[0K$ESC[1m${title}$ESC[0m"
+        echo "${ESC}[0Ksection_start:${date}:${id}[collapsed=true]${CR}${ESC}[0K${ESC}[1m${title}${ESC}[0m"
     }
 }
 
@@ -16,5 +16,5 @@ function global:endsection($id) {
     $ESC = [char] 27 
     $CR = [char] 13
 
-    echo "$ESC[0Ksection_end:${date}:${id}$CR$ESC[0K"
+    echo "${ESC}[0Ksection_end:${date}:${id}${CR}${ESC}[0K"
 }
