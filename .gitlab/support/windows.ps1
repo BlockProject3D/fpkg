@@ -1,5 +1,5 @@
 function global:startsection($id, $title, $collapsed) {
-    $date = Get-Date (Get-Date).ToUniversalTime() -UFormat %s
+    $date = [DateTimeOffset]::Now.ToUnixTimeSeconds()
     #Oh my god PowerShell really wants to be the best peace of shit shell of all times. Seriously even the raw sh from linux does not have so many defects!
     $ESC = [char] 27 
     $CR = [char] 13
@@ -12,7 +12,7 @@ function global:startsection($id, $title, $collapsed) {
 }
 
 function global:endsection($id) {
-    $date = Get-Date (Get-Date).ToUniversalTime() -UFormat %s
+    $date = [DateTimeOffset]::Now.ToUnixTimeSeconds()
     $ESC = [char] 27 
     $CR = [char] 13
 
