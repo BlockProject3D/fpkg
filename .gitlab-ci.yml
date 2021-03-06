@@ -145,10 +145,10 @@ build-release-win64:
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         - choco install -y rust-ms
         - refreshenv
-        - cd ~
         - wget.exe https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
-        - 7z.exe x wix311-binaries.zip -owixtoolset
-        - $env:Path += ";$env:HOME\wixtoolset\"
+        - 7z.exe x wix311-binaries.zip -o$env:USERPROFILE\wixtoolset
+        - rm wix311-binaries.zip
+        - $env:Path += ";$env:USERPROFILE\wixtoolset\"
         - candle.exe --version
         - cargo install cargo-wix
         - endsection deps
