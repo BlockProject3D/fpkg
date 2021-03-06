@@ -146,7 +146,7 @@ build-release-win64:
         - choco install -y rust-ms
         - refreshenv
         - wget.exe https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
-        - 7z.exe x wix311-binaries.zip -o$env:USERPROFILE\wixtoolset
+        - 7z.exe x wix311-binaries.zip -o "$env:USERPROFILE\wixtoolset"
         - rm wix311-binaries.zip
         - $env:Path += ";$env:USERPROFILE\wixtoolset\"
         - candle.exe --version
