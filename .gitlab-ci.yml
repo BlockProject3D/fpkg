@@ -142,12 +142,13 @@ build-release-win64:
     before_script:
         - . ./.gitlab/support/windows.ps1
         - startsection deps "Install job dependencies"
-        - Install-WindowsFeature Net-Framework-Core
         - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         - choco install -y rust-ms
-        - choco install wixtoolset --version 3.11.2 -y
         - refreshenv
-        - setx /M PATH "%PATH%;C:\Program Files (x86)\WiX Toolset v3.11\bin"
+        - cd ~
+        - wget.exe https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
+        - 7z.exe x wix311-binaries.zip -owixtoolset
+        - $env:Path += ";$env:HOME\wixtoolset\"
         - candle.exe --version
         - cargo install cargo-wix
         - endsection deps
