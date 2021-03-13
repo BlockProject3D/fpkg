@@ -171,8 +171,8 @@ sign-win64:
     dependencies:
         - build-release-win64
     before_script:
-        - sudo apt update
-        - sudo apt install -y osslsigncode
+        - apt update
+        - apt install -y osslsigncode
     script:
         - WINDOWS_BIN=$(ls Client/target/wix/ | grep -P '.\.msi' | cat)
         - osslsigncode sign -certs $MSI_SIGNING_CERTIFICATE -key $MSI_SIGNING_KEY -n fpkg -i "https://gitlab.com/bp3d/fpkg" -in Client/target/wix/$WINDOWS_BIN -out $WINDOWS_BIN
