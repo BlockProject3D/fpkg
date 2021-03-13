@@ -1,6 +1,7 @@
 stages:
     - build
     - test
+    - sign
     - upload
     - release
 
@@ -157,8 +158,26 @@ build-release-win64:
         - cd Client
         - cargo build --release
         - cargo wix
-        - cargo wix sign
         - endsection build
+    artifacts:
+        paths:
+            - Client/target/wix
+
+sign-win64:
+    image: ubuntu:latest
+    stage: sign
+    only:
+        - master
+    dependencies:
+        - build-release-win64
+    before_script:
+        - sudo apt update
+        - sudo apt install -y osslsigncode
+    script:
+        - WINDOWS_BIN=$(ls Client/target/wix/ | grep -P '.\.msi' | cat)
+        - osslsigncode sign -certs $MSI_SIGNING_CERTIFICATE -key $MSI_SIGNING_KEY -n fpkg -i "https://gitlab.com/bp3d/fpkg" -in Client/target/wix/$WINDOWS_BIN -out $WINDOWS_BIN
+        - rm Client/target/wix/$WINDOWS_BIN
+        - mv $WINDOWS_BIN Client/target/wix/
     artifacts:
         paths:
             - Client/target/wix
@@ -168,11 +187,8 @@ upload-artifacts:
     image: debian:stable
     only:
         - master
-    tags:
-        - linux
-        - docker
     dependencies:
-        - build-release-win64
+        - sign-win64
         - build-release-linux
         - get-version
     script:
